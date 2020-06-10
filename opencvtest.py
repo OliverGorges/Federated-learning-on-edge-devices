@@ -48,7 +48,10 @@ faceCascade = cv2.CascadeClassifier(cascPath)
 
 video_capture = cv2.VideoCapture(0)
 
-
+# Image queue
+queue = []
+delay = 5
+tick = 0
 
 fps = 0
 count = 0
@@ -69,6 +72,7 @@ while True:
 
     #request termalimage
     image_data = ti.get_high_contrast_image()
+    queue.append(image_data)
     
     # Capture frame-by-frame
     ret, frame = video_capture.read()
@@ -112,19 +116,26 @@ while True:
     
     # Display the resulting frame
     cv2.imshow('Video', frame)
+
+    #delay = fps
+    #print( len(queue))
+
+    if len(queue) > delay:
+        tick = 0
+        data = queue.pop(0)
+
+        # Display Thermal Image
+        image = Image.new('P', (80, 60))
+        image.putdata(data)
+        image.putpalette(get_thermal_image_color_palette())
+        #print(numpy.array(image))
+        image = image.resize((80*8, 60*8), Image.ANTIALIAS)
+        image = ImageOps.flip(image)
+        img = numpy.array(image.convert('RGB'))
+        img = img[:, :, ::-1].copy() 
+        cv2.imshow('ThermalVideo', img)
     
-    # Display Thermal Image
-    image = Image.new('P', (80, 60))
-    image.putdata(image_data)
-    image.putpalette(get_thermal_image_color_palette())
-    #print(numpy.array(image))
-    image = image.resize((80*8, 60*8), Image.ANTIALIAS)
-    image = ImageOps.flip(image)
-    img = numpy.array(image.convert('RGB'))
-    img = img[:, :, ::-1].copy() 
-    cv2.imshow('ThermalVideo', img)
-    
-    
+    #x = input()
     #out.write(frame)
     if cv2.waitKey(10) & 0xFF == ord('q'):
         break
@@ -134,5 +145,5 @@ while True:
 
 # When everything is done, release the capture
 #video_capture.release()
-cv2.destroyAllWindows()
+#cv2.destroyAllWindows()
 ipcon.disconnect()
