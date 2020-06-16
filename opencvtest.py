@@ -59,8 +59,8 @@ start = time.time()
 
 # sample image
 ret, frame = video_capture.read()
-width, height = frame.shape[:2]
-size = ( height, width)
+owidth, oheight = frame.shape[:2]
+#PiCam2 image Crop
 
 #out = cv2.VideoWriter('demoVideo.avi',cv2.VideoWriter_fourcc(*'DIVX'), 25, size)
 
@@ -77,17 +77,22 @@ while True:
     # Capture frame-by-frame
     ret, frame = video_capture.read()
     frame = cv2.flip(frame, 0)
+
+    frame = frame[int(owidth*0.2):int(owidth*0.95), int(oheight*0.15):int(oheight*0.9)]       
+
     width, height = frame.shape[:2]
     size = (width, height)
+    print(size)
     #inc Brighness for Pi Cam2
     brt = 30
     #frame[frame < 255-brt] += brt
     
     #size reduce
-    m = 4
+    m = 1
     
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     gray = cv2.cv2.resize(gray, (int(height / m), int(width / m)))
+    gWidth, gHeight = gray.shape[:2]
     faces = faceCascade.detectMultiScale(
         gray,
         scaleFactor=1.1,
@@ -103,11 +108,32 @@ while True:
         print(fps)
     else:
         count += 1
+    # Normalize Boxes
+        nFaces = []
+        for (x, y, w, h) in faces:
+            nFaces.append(
+                (
+                    x / gWidth,
+                    y / gHeight,
+                    (x+w) / gWidth,
+                    (y+h) / gHeight
+                )
+            )
+        print(nFaces)
+        faces = nFaces
 
+
+    frame = cv2.resize(frame, (80*8, 60*8) , interpolation = cv2.INTER_AREA)     
     # Draw a rectangle around the faces
     for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x*m, y*m), (x*m+w*m, y*m+h*m), (0, 255, 0), 2)
+        x = int(x * 60*8)
+        y = int(y * 80*8)
+        w = int(w * 60*8)
+        h = int(h * 80*8)
+        cv2.rectangle(frame, (x, y), (w, h), (0, 255, 0), 2)
         #cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+    
+    
 
 
     cv2.putText(frame, f'FPS: {int(fps)}', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
@@ -133,6 +159,13 @@ while True:
         image = ImageOps.flip(image)
         img = numpy.array(image.convert('RGB'))
         img = img[:, :, ::-1].copy() 
+        
+        for (x, y, w, h) in faces:
+            x = int(x * 60*8)
+            y = int(y * 80*8)
+            w = int(w * 60*8)
+            h = int(h * 80*8)
+            cv2.rectangle(img, (x, y), (w, h), (0, 255, 0), 2)
         cv2.imshow('ThermalVideo', img)
     
     #x = input()

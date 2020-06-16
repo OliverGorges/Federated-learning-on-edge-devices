@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <style >
+            #header {
+                width: 90vw;
+                height: 20vh;
+                padding-left: 10vh;
+            }
+
+            .headerElement {
+                width: 25%;
+                float: left;
+            }
+            #images {
+                width: 100vw;
+                height: 80vh;
+            }
+
+            .image {
+                width: 50vw;
+                height: auto;
+                float: left;
+            }
+
+            
+
+        </style>
+        <script>
+            var images
+            var pos = 0
+
+            window.onload = function(){
+                // Load all Image IDs
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        images = JSON.parse(this.responseText);
+                        document.getElementById("pos").innerHTML = pos
+                        document.getElementById("max").innerHTML = images.length
+                        document.getElementById("imageID").innerHTML = images[0]
+                        document.getElementById("image1").src = "/getImage/" + images[pos]
+                        document.getElementById("image2").src = "/getThermalImage/" + images[pos]
+                    }
+                };
+                xhttp.open("GET", "/listFiles", true);
+                xhttp.send();
+            }
+
+            function back(){
+                if (pos === 0){
+                    pos = images.length-1
+                }else{
+                    pos--
+                }
+                
+                document.getElementById("pos").innerHTML = pos
+                document.getElementById("imageID").innerHTML = images[pos]
+                document.getElementById("image1").src = "/getImage/" + images[pos]
+                document.getElementById("image2").src = "/getThermalImage/" + images[pos]
+            }
+
+            function next(){
+                if (pos === images.length-1){
+                    pos = 0
+                }else{
+                    pos++
+                }
+                
+                document.getElementById("pos").innerHTML = pos
+                document.getElementById("imageID").innerHTML = images[pos]
+                document.getElementById("image1").src = "/getImage/" + images[pos]
+                document.getElementById("image2").src = "/getThermalImage/" + images[pos]
+            }
+        </script>
+    </head>
+    <body>
+
+        <div id="header">
+            <button class="headerElement" onclick="back()">Back</button>
+            <div class="headerElement" id="name">
+                <span>ImageID: </span>
+                <span id="imageID">XXX</span>
+            </div>
+            <div class="headerElement">
+                <span id="pos"></span> / <span id="max"></span>
+            </div>
+            <button class="headerElement" onclick="next()">Next</button>
+        </div>
+        <div id="images">
+            <div class="image"><h4>Image</h4> <image id="image1" src=""/></div>
+            <div class="image"><h4>Thermal Image</h4> <image id="image2" src=""/></div>
+        </div>
+
+
+        
+    </body>
+</html>
+
