@@ -1,5 +1,7 @@
 import cv2
-import os 
+import os
+import logging
+
 
 class FaceDetection():
 
@@ -9,7 +11,7 @@ class FaceDetection():
         self.faceCascade = cv2.CascadeClassifier(cascPath)
 
     def prepareImage(self, image, scale):
-        print("Prepare Image")
+        logging.debug("Prepare Image")
         width, height = image.shape[:2]
         self.image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         self.image = cv2.cv2.resize(image, (int(height / scale), int(width / scale)))
@@ -19,7 +21,7 @@ class FaceDetection():
     def detectFace(self, image=None, normalized=True):
         if not image:
             image = self.image
-        print(image)
+        logging.debug(image)
         self.faces = self.faceCascade.detectMultiScale(
                 image,
                 scaleFactor=1.1,
@@ -31,7 +33,7 @@ class FaceDetection():
             return self.normalizeBoxes()
         else:
             return self.faces
-    
+
 
     def normalizeBoxes(self, image=None, faces=None):
         if not image:

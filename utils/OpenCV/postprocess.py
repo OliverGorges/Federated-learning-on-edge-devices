@@ -1,5 +1,5 @@
 import cv2
-
+import logging
 
 def drawBoxes(image, boxes, color=(0, 255, 0)):
     width, height = image.shape[:2]
@@ -8,7 +8,7 @@ def drawBoxes(image, boxes, color=(0, 255, 0)):
         y = int(y * height)
         w = int(w * width)
         h = int(h * height)
-        print((x, y, w, h))
+        logging.debug((x, y, w, h))
         cv2.rectangle(image, (x, y), (w, h), color , 2)
     return image
 
