@@ -7,6 +7,8 @@ import logging
 class Camera():
 
     setup = False
+    hcImg = False
+    tempImg = False
 
     def __init__(self, host="localhost", port=4223, uid="LcN"):
         logging.info("Start Connection")
@@ -22,9 +24,11 @@ class Camera():
 
 
     def isTempImage(self):
+        logging.info("Setup Temperatur Image")
         self.ti.set_image_transfer_config(self.ti.IMAGE_TRANSFER_MANUAL_TEMPERATURE_IMAGE)
         self.ti.set_resolution(self.ti.RESOLUTION_0_TO_655_KELVIN)
         time.sleep(0.5)
+        self.setup = True
 
     def getTemperatureImage(self):
         if not self.ipcon.get_connection_state() == 1:
@@ -37,15 +41,17 @@ class Camera():
         return self.ti.get_temperature_image()
 
     def isHighContrastImage(self):
+        logging.info("Setup High Contrast Image")
         self.ti.set_image_transfer_config(self.ti.IMAGE_TRANSFER_MANUAL_HIGH_CONTRAST_IMAGE)
         self.ti.set_resolution(self.ti.RESOLUTION_0_TO_655_KELVIN)
         time.sleep(0.5)
+        self.setup = True
 
     def getHighContrastImage(self):
         if not self.ipcon.get_connection_state() == 1:
             __init__()
 
-        if not self.setup or self.hcImg:
+        if not self.setup or self.tempImg:
             self.isHighContrastImage()
             self.hcImg = True
             self.tempImg = False

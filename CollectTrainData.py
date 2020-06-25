@@ -15,14 +15,15 @@ from utils.OpenCV.postprocess import drawBoxes
 from utils.ThermalImage.postprocess import dataToImage
 from utils.Dataset.annotation import jsonAnnotaions
 from utils.fps import FPS
-
+from io import BytesIO
+from picamera import PiCamera
 #Log
 logging.basicConfig(level=logging.INFO)
 
 #Dataset config
 dataset = os.path.join(os.getcwd(), "Dataset")
 defaultGap = 20
-gap = 0 # every x image will be added to the Dataset
+gap = 2 # every x image will be added to the Dataset
 resetGap = 50 # Resets the Gap when nothing happens for x frames
 
 outputSize = (80*8, 60*8)
@@ -90,7 +91,7 @@ while True:
         logging.debug(type(data))
         # Transform 16Bit data to 8 Bit
         thermalImg = dataToImage(data, outputSize)
-        cv2.imshow('ThermalVideo', thermalImg)
+        #cv2.imshow('ThermalVideo', thermalImg)
 
 
     # Prepare OpenCV Image
@@ -101,10 +102,10 @@ while True:
     frame = drawBoxes(prevFrame, faces)
 
     cv2.putText(prevFrame, f'FPS: {int(fps)}', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
-
+    print(int(fps))
 
     # Display the resulting frame
-    cv2.imshow('Video', prevFrame)
+    #cv2.imshow('Video', prevFrame)
 
     #Save Data
     try:
@@ -123,7 +124,7 @@ while True:
 
     resetGap = resetGap - 1
     if resetGap <= 0:
-        gap = 0
+        gap = 2
         resetGap = 50
 
     fps.tick()
