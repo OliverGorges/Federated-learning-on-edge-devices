@@ -67,5 +67,10 @@ def getThermalImage(id):
 
     return serve_pil_image(img)
 
-
+@app.route('/deleteAnnotation/<id>')
+def deleeteAnnoation(id):
+    os.remove(os.path.join(dataset, "Images", id+".jpg"))
+    os.remove(os.path.join(dataset, "ThermalImages", id+".jpg"))
+    os.remove(os.path.join(dataset, "Annotations", id+".json"))
+    return '', 200
 app.run(host='0.0.0.0')

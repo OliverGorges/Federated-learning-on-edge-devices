@@ -3,23 +3,40 @@
 <html>
     <head>
         <style >
+           
+           body {
+                margin: 30px;
+            }
+
             #header {
                 width: 90vw;
                 height: 20vh;
-                padding-left: 10vh;
+                padding-left: 4vw;
+            }
+
+            button{
+                border-radius: 20px;
+                border: none;
+                background-color: #0070ad;
+                color: white;
+                font-size: 1rem;
+                display: inline-block;
             }
 
             .headerElement {
-                width: 25%;
+                width: 23%;
                 float: left;
+                height: 50px;
+                padding: 25px;
+                text-align: center;
             }
             #images {
                 width: 100vw;
-                height: 80vh;
+                height: 70vh;
             }
 
             .image {
-                width: 50vw;
+                width: 45vw;
                 height: auto;
                 float: left;
             }
@@ -46,6 +63,19 @@
                 };
                 xhttp.open("GET", "/listFiles", true);
                 xhttp.send();
+            }
+
+            function del(){
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                       window.alert(images[pos] + " deleted")
+                    }
+                };
+                if(window.confirm("Delete "+images[pos]+"?")){
+                    xhttp.open("GET", "/deleteAnnotation/" + images[pos], true);
+                    xhttp.send();
+                }
             }
 
             function back(){
@@ -93,7 +123,7 @@
             <div class="image"><h4>Thermal Image</h4> <image id="image2" src=""/></div>
         </div>
 
-
+        <button onclick="del()">Delete Annotation</button>
         
     </body>
 </html>
