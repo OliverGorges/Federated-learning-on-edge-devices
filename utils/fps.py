@@ -12,7 +12,7 @@ class FPS():
         # FPS Calculation
         self.end = time.time()
         if (self.end - self.start > self.refresh):
-            self.fps = int(self.count / self.refresh)
+            self.fps = self.count / self.refresh
             self.start = time.time()
             self.count = 0
         else:
@@ -25,4 +25,7 @@ class FPS():
     
     def __int__(self):
         return int(self.fps)
+        
+    def __float__(self):
+        return float(self.fps)
     

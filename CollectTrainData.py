@@ -9,9 +9,10 @@ import json
 import logging
 from copy import deepcopy
 from PIL import Image, ImageOps
-from utils.ThermalImage.camera import Camera
+from utils.ThermalImage.camera import Camera as ThermalCamera
 from utils.OpenCV.detection import FaceDetection
 from utils.OpenCV.postprocess import drawBoxes
+from utils.OpenCV.camera import Camera
 from utils.ThermalImage.postprocess import dataToImage
 from utils.Dataset.annotation import jsonAnnotaions
 from utils.fps import FPS
@@ -28,16 +29,18 @@ resetGap = 50 # Resets the Gap when nothing happens for x frames
 
 outputSize = (80*8, 60*8)
 
-# Init Thermalcamera
-tc = Camera(uid="LcN")
-tc.isTempImage()
-thermalImg = None
 
 # Init FPS
 fps = FPS()
 
+
+# Init Thermalcamera
+tc = ThermalCamera(uid="LcN")
+tc.isTempImage()
+thermalImg = None
+
 # Init OpenCV
-videoCapture = cv2.VideoCapture(0)
+c = Camera()
 faceDetection = FaceDetection()
 
 # Image queue to delay thermal Image
@@ -48,9 +51,8 @@ tick = 0
 
 
 # sample image
-ret, frame = videoCapture.read()
-oWidth, oHeight = frame.shape[:2] #Original Size
-oSize = ( oHeight, oWidth)
+frame = c.takeImage()
+oSize = c.shape #Get the size of the original Image
 
 
 
@@ -59,28 +61,16 @@ while True:
     image_data = tc.getTemperatureImage()
     queue.append(image_data)
 
-
     # Capture frame-by-frame
-    ret, frame = videoCapture.read()
-    frame = cv2.flip(frame, 0)
+    frame = c.takeImage()
 
     # Crop image from PiCam2
-    frame = frame[int(oWidth*0.2):int(oWidth*0.95), int(oHeight*0.15):int(oHeight*0.9)]
-    width, height = frame.shape[:2]
-    size = (width, height)
+    frame, size = c.cropImage(frame)
 
-    #increase Brighness for Pi Cam2
-    brt = 30
-    #frame[frame < 255-brt] += brt
-
-    #Multiplicator to reduce model imput size
-    m = 1
-
-    #Destect Faces
+    #Detect Faces
+    m = 1  #Multiplicator to reduce model imput size
     faceDetection.prepareImage(frame, m)
     faces = faceDetection.detectFace()
-
-
 
     data = None
 
