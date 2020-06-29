@@ -8,12 +8,22 @@ import pathlib
 #https://cocodataset.org/#format-data
 
 
-def convert(imageDir, annotationDir, labelmap, outputPath ):
-  annoationFiles = os.listdir(os.path.join(annotationDir))
+def convert(imageDir, annotationDir, labelmap, outputPath, split=0.7):
+  annotationFiles = os.listdir(os.path.join(annotationDir))
+  if not split == 1:
+    sub = [annotationFiles[0:int(len(annotationFiles)*split)], annotationFiles[int(len(annotationFiles)*split):]]
+    train = createAnnotation(imageDir, sub[0], annotationDir, labelmap, outputPath, "Train")
+    eval = createAnnotation(imageDir, sub[1], annotationDir, labelmap, outputPath, "Eval")
+    return [train, eval], [len(sub[0]), len(sub[1])]
+  else:
+    train = createAnnotation(imageDir, annotationFiles, annotationDir, labelmap, outputPath, "Train")
+    eval = ""
+    return [train, eval], [len(annotationFiles), 0]
 
+def createAnnotation(imageDir, annotationFiles, annotationDir, labelmap, outputPath, tag="Train"):
   coco = {}
   images = []
-  annoations = []
+  annotations = []
   categories = []
 
   nrOfAnnotations = 0
@@ -24,7 +34,7 @@ def convert(imageDir, annotationDir, labelmap, outputPath ):
       "id": 0
     })
 
-  for i, fname in enumerate(annoationFiles):
+  for i, fname in enumerate(annotationFiles):
     with open(os.path.join(annotationDir, fname)) as json_file:
       anno = json.load(json_file)
       imageHeight = 60*8
@@ -38,11 +48,13 @@ def convert(imageDir, annotationDir, labelmap, outputPath ):
       for box in anno["objects"]:
         obj = {}
         obj["id"] = nrOfAnnotations
-        obj["bbox"] = [box["bbox"]["xmin"] * imageWidth, box["bbox"]["ymin"] * imageHeight, (box["bbox"]["xmax"] - box["bbox"]["xmin"]) * imageWidth, (box["bbox"]["ymax"] - box["bbox"]["ymin"]) * imageHeight]
+        box = [int(box["bbox"]["xmin"] * imageWidth), int(box["bbox"]["ymin"] * imageHeight), int((box["bbox"]["xmax"] - box["bbox"]["xmin"]) * imageWidth), int((box["bbox"]["ymax"] - box["bbox"]["ymin"]) * imageHeight)]
+        obj["bbox"] = box
+        obj["area"] = box[2] * box[3]
         obj["image_id"] = i
-        obj["iscrowd"] = 1
+        obj["iscrowd"] = 1 if len(anno["objects"]) > 1 else 0
         obj["category_id"] = 0
-        annoations.append(obj)
+        annotations.append(obj)
         nrOfAnnotations += 1
 
 
@@ -56,11 +68,15 @@ def convert(imageDir, annotationDir, labelmap, outputPath ):
 
   coco["type"] = "instances"
   coco["images"] = images
-  coco["annoations"] = annoations
+  coco["annotations"] = annotations
   coco["categories"] = categories
-  with open(os.path.join(outputPath, f'coco{datetime.now().strftime("%d%m%Y")}.json'), 'w') as outfile:
+  output = os.path.join(outputPath, f'coco{tag}{datetime.now().strftime("%d%m%Y")}.json')
+  with open(output, 'w') as outfile:
       json.dump(coco, outfile)
 
+  return output
+  
+
 if __name__ == "__main__":
-  convert(os.path.join("..", "..", "Dataset", "Images"), os.path.join("..", "..", "Dataset", "Annotations"), None, os.path.join("..", "..", "Dataset")  )
+  convert(os.path.join("..", "..", "Dataset", "Images"), os.path.join("..", "..", "Dataset", "Annotations"), None, os.path.join("..", "..", "Traindata", "data", "tfrecords")  )
   print(f'Saved in {pathlib.Path(os.path.join("..", "..", "Dataset")).absolute()}')
