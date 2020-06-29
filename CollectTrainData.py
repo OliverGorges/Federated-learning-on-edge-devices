@@ -126,4 +126,4 @@ while True:
 
 # When everything is done, release the capture
 cv2.destroyAllWindows()
-tc.ipcon.disconnect()
+tc.close()

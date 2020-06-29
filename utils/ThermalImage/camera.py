@@ -56,4 +56,7 @@ class Camera():
             self.hcImg = True
             self.tempImg = False
         return self.ti.get_high_contrast_image()
+    
+    def close(self):
+        self.ipcon.disconnect()
 
