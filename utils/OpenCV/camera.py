@@ -23,7 +23,7 @@ class Camera():
         return self.image
 
     # Crop Frame to fit the Image from the PICam2 with ThermalImage
-    def cropFrame(self, image=None, factor=[0.2, 0.95, 0.15, 0.9]):
+    def cropImage(self, image=None, factor=[0.2, 0.95, 0.15, 0.9]):
         if isinstance(factor, float):
             factor = [factor, factor, factor, factor]
         if image is None:
