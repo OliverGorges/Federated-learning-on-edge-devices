@@ -11,7 +11,7 @@ from copy import deepcopy
 from PIL import Image, ImageOps
 from concurrent.futures import ThreadPoolExecutor
 from utils.ThermalImage.camera import Camera as ThermalCamera
-from utils.OpenCV.detection import FaceDetection
+from utils.Tensorflow.detection import FaceDetection
 from utils.OpenCV.postprocess import drawBoxes
 from utils.OpenCV.camera import Camera
 from utils.ThermalImage.postprocess import dataToImage
@@ -52,7 +52,7 @@ tick = 0
 
 c1, c2 = 0, 0
 
-def getThermalImage():
+def thermalImageThread():
     #get Data
     image_data = tc.getTemperatureImage()
     logging.debug(type(image_data))
@@ -66,7 +66,7 @@ def getThermalImage():
     # Add data to Q
     data_queue.append((thermalImg, faces, image_data))
 
-def getImage():
+def imageThread():
     # Capture frame-by-frame
     frame = c.takeImage()
     # Crop image from PiCam2
@@ -89,13 +89,13 @@ with ThreadPoolExecutor(max_workers=4) as executor:
         #print(f'Tasks: {executor.getActiveCount()}')
         if thermalThread is None:
             print("start")
-            thermalThread = executor.submit(getThermalImage)
+            thermalThread = executor.submit(thermalImageThread)
         if thermalThread.done():
             print("done")
             thermalThread = None
             #thermalThread = executor.submit(getThermalImage) #Take Thermal Image and add it to the Q
         print("start image")
-        ImageThread = executor.submit(getImage)
+        ImageThread = executor.submit(imageThread)
         frame, size, faces = ImageThread.result()
     
         #thermalFaces = faceDetection.detectFace(thermal=True)
