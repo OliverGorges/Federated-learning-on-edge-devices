@@ -26,7 +26,7 @@ class Camera():
     def cropFrame(self, image=None, factor=[0.2, 0.95, 0.15, 0.9]):
         if isinstance(factor, float):
             factor = [factor, factor, factor, factor]
-        if not image:
+        if image is None:
             image = self.image
         oWidth, oHeight = image.shape[:2]
         image = image[int(oWidth*factor[0]):int(oWidth*factor[1]), int(oHeight*factor[2]):int(oHeight*factor[3])]
