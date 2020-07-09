@@ -18,7 +18,7 @@ from utils.ThermalImage.postprocess import dataToImage
 from utils.Dataset.annotation import jsonAnnotaions
 from utils.fps import FPS
 from io import BytesIO
-from multiprocessing import Process
+import multiprocessing
 
 #Log
 logging.basicConfig(level=logging.DEBUG)
@@ -70,14 +70,16 @@ def imageThread(frame):
     t2 = time.time()
     
     logging.debug(f"Runtime ImageThread:  {time.time() - t1} / Image {t2 - t1} / Prediction {time.time() - t2}")
-    return frame, size, faces
+    return frame
 
-def detectionThread(inputDict, detector):
+def detectionThread(queue, inputDict, detector):
     t1 = time.time()
     detector.prepareImage(inputDict["Image"], inputDict["Scale"])
+    
     inputDict["Faces"] = detector.detectFace()
+    inputDict["Runtime"] = time.time() - t1
     logging.debug(f"Runtime DetectionThread:  {time.time() - t1} ")
-    return inputDict
+    queue.put(inputDict)
 
 # sample image
 frame = c.takeImage()
@@ -87,8 +89,8 @@ thermalThread = None
 detectionThread1,  detectionThread2 = None, None 
 
 frameDict = {}
-
-with ThreadPoolExecutor(max_workers=4) as executor:
+q = multiprocessing.Queue()
+with ThreadPoolExecutor(max_workers=8) as executor:
     while True:
         # Capture frame-by-frame
         liveFrame = c.takeImage()
@@ -96,30 +98,51 @@ with ThreadPoolExecutor(max_workers=4) as executor:
         liveFrame, size = c.cropImage(liveFrame)
 
         #print(f'Tasks: {executor.getActiveCount()}')
-        if thermalThread is None:
+        if detectionThread1 is None and thermalThread is None:
             thermalThread = executor.submit(thermalImageThread)
-        if thermalThread.done():
-            if detectionThread1 is None and detectionThread2 is None:
-                c2 += 1
-                thermalImg, data = thermalThread.result()
-                detectionThread1 = executor.submit(detectionThread, {"Image": liveFrame, "Size": size, "Scale": 1}, faceDetection1)
-                detectionThread2 = executor.submit(detectionThread, {"Image": thermalImg, "Data": data, "Scale": 1}, faceDetection2)
-                thermalThread = None
+            detectionThread1 = multiprocessing.Process(target=detectionThread, args=(q, {"Image": liveFrame, "Size": size, "Scale": 1, "Thermal": False}, faceDetection1))
+            detectionThread1.start()
+        
+        if thermalThread is not None:
+            if thermalThread.done():
+                if  detectionThread2 is None:
+                    c2 += 1
+                    thermalImg, data = thermalThread.result()
+                    print(f'{thermalImg.shape} / {liveFrame.shape}')
+                    detectionThread2 = multiprocessing.Process(target=detectionThread, args=(q, {"Image": thermalImg, "Data": data, "Scale": 1, "Thermal": True}, faceDetection2))
+                    detectionThread2.start()
+                    thermalThread = None
 
-
+        
         if detectionThread1 is not None and detectionThread2 is not None:
-            if detectionThread1.done() and detectionThread2.done():
+            #detectionThread1.join(1)
+            #detectionThread2.join(1)
+            #print(".")
+            if q.qsize() >= 2:
                 frameDict = {}
-                frameDict["PICam"] = detectionThread1.result()
-                frameDict["ThermalCam"] = detectionThread2.result()
+                print("Threads done")
+                d1 = q.get()
+                d2 = q.get()
+                if d1["Thermal"]:
+                    frameDict["PICam"] = d2
+                    frameDict["ThermalCam"] = d1
+                else:
+                    frameDict["PICam"] = d1
+                    frameDict["ThermalCam"] = d2
                 detectionThread1, detectionThread2 = None, None
+            else:
+                pass
+                #print("Still Alive ")
           
         c1 += 1
 
         if "PICam" in frameDict:
             # Prepare OpenCV Image
-            frame = cv2.resize(frameDict["PICam"]["Image"], outputSize , interpolation = cv2.INTER_AREA)
+            print(f'Norm: {frameDict["PICam"]["Image"].shape}')
+            print(f'Therm: {frameDict["ThermalCam"]["Image"].shape}')
 
+            frame = cv2.resize(frameDict["PICam"]["Image"], outputSize , interpolation = cv2.INTER_AREA)
+            
             prevFrame = frame.copy()
             # Draw a rectangle around the faces
             prevFrame = drawBoxes(prevFrame, frameDict["PICam"]["Faces"])
@@ -127,6 +150,7 @@ with ThreadPoolExecutor(max_workers=4) as executor:
             
             prevFrame = drawBoxes(prevFrame, frameDict["ThermalCam"]["Faces"], (0,0,255))
             alpha = 0.6
+            print(f'Norm2: {prevFrame.shape}')
             prevFrame = cv2.addWeighted(prevFrame, alpha, frameDict["ThermalCam"]["Image"], 1-alpha, 0.0)
 
             cv2.putText(prevFrame, f'FPS: {int(fps)}', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
@@ -134,6 +158,7 @@ with ThreadPoolExecutor(max_workers=4) as executor:
 
             # Display the resulting frame
             cv2.imshow('Video', prevFrame)
+            frameDict = {}
 
         resetGap = resetGap - 1
         if resetGap <= 0:
@@ -142,10 +167,10 @@ with ThreadPoolExecutor(max_workers=4) as executor:
 
         fps.tick()
 
-        print (f'{c1} / {c2}')
+        #print (f'{c1} / {c2}')
 
         #out.write(frame)
-        if cv2.waitKey(10) & 0xFF == ord('q'):
+        if cv2.waitKey(20) & 0xFF == ord('q'):
             break
 
 
