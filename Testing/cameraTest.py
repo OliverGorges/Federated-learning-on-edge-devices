@@ -75,6 +75,7 @@ class TestCameras(unittest.TestCase):
 
     def testFPSwithThermalFaceDetectHC(self):
         fps = FPS()
+        faceDetection = FaceDetection()
         testTime = time.time() + 10 #run for 10s
         while testTime > time.time():
             image = tc.getHighContrastImage()
@@ -86,6 +87,7 @@ class TestCameras(unittest.TestCase):
 
     def testFPSwithThermalFaceDetectTemp(self):
         fps = FPS()
+        faceDetection = FaceDetection()
         testTime = time.time() + 10 #run for 10s
         while testTime > time.time():
             data = tc.getTemperatureImage()
@@ -109,6 +111,7 @@ class TestCameras(unittest.TestCase):
 
     def testCombinedFPSwithFaceDetect(self):
         fps = FPS()
+        faceDetection = FaceDetection()
         testTime = time.time() + 10 #run for 10s
         while testTime > time.time():
             c.takeImage()

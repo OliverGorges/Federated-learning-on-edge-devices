@@ -30,7 +30,7 @@ PATH_TO_LABELS = os.path.join(os.path.expanduser("~"), "Projects", "Tensorflow",
 category_index = label_map_util.create_category_index_from_labelmap(PATH_TO_LABELS, use_display_name=True)
 
 #Model
-model_id = "ssd_mobilenet_v2_coco_2018_03_29"
+model_id = "FaceDetect"
 model_dir = os.path.join(os.path.expanduser("~"), "Projects", "Tensorflow", "Models", model_id, "saved_model")
 
 
