@@ -26,7 +26,7 @@ def aggregateVariables(checkpoint_dicts):
 def writeCheckpointValues(data, ref, out):
     tf.reset_default_graph()
     if isinstance(ref, str):
-        graph = readCheckpointValues((ref, 0), trainable=False)
+        graph = tf.compat.v1.train.import_meta_graph(model_dir) 
     else:
         graph = ref
     with tf.Session() as sess:
@@ -77,12 +77,12 @@ def sendData(path, dest, endpoint, trainable=True):
 if __name__ == "__main__":
     
     model_id = "FaceDetect"
-    model_dir = os.path.join("Traindata", "model", model_id, "model.ckpt-0.meta")
+    model_dir = os.path.join("Traindata", "model", model_id, "model.ckpt-4990.meta")
     checkpoints = [model_dir for x in range(2)]
 
     print(checkpoints)
-    stage1 = mpipe.UnorderedStage(readCheckpointValues, len(checkpoints))
-    pipe = mpipe.Pipeline(stage1)
+    #stage1 = mpipe.UnorderedStage(readCheckpointValues, len(checkpoints))
+    #pipe = mpipe.Pipeline(stage1)
     chkps = []
     aggregatedData = {}
     t1 = time.time()
@@ -90,10 +90,11 @@ if __name__ == "__main__":
     t2 = time.time()
     print(f'Load Ref: {t2-t1}')
     for i, c in enumerate(checkpoints):
-        pipe.put((c, i))
-    pipe.put(None)
-    for result in pipe.results():
-        chkps.append(result)
+        #pipe.put((c, i))
+        chkps.append(readCheckpointValues((c,i)))
+    #pipe.put(None)
+    #for result in pipe.results():
+        #chkps.append(result)
     t3 = time.time()
     print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}')
     aggregatedData = aggregateVariables(chkps)

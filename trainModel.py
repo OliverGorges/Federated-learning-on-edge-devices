@@ -1,14 +1,31 @@
 from object_detection.dataset_tools.create_coco_tf_record import _create_tf_record_from_coco_annotations
-from utils.Dataset import cocoAnnotationConverter as cocoAnnotation, pipeline_config
+from utils.Dataset.cocoAnnotationConverter import  XmlConverter, JsonConverter
+from utils.Dataset import pipeline_config
 import os
 from shutil import copy
 import pathlib
 import tensorflow as tf
+import boto3
+from botocore.config import Config
+from zipfile import ZipFile
+import time
+import logging 
 from object_detection import model_hparams
 from object_detection import model_lib
 
+logging.basicConfig(level=logging.INFO)
+
+#TF GPUConfig
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.Session(config=config)
+
+CASE = 'MaskDetection'
+DATA = 'Images'
+Format = 'XML'
+
 #Prepare Data
-imageDir = os.path.join("Dataset", "ThermalImages")
+imageDir = os.path.join("Dataset", CASE , DATA)
 outputDir = os.path.join("Traindata", "data")
 model = "ssd_mobilenet_v2_coco_2018_03_29"
 model_dir = os.path.join("Traindata", "model", model)
@@ -22,7 +39,10 @@ config["label_map"] = str(pathlib.Path(os.path.join("Traindata", "data", "labelm
 config["checkpoint"] = str(pathlib.Path(os.path.join(checkpoint_dir,  "model.ckpt")).absolute())
 
 # Convert single annotation Files to AnnotationFile for Train and Eval
-annotationFiles, size = cocoAnnotation.convert(os.path.join(outputDir, "images"), os.path.join("Dataset", "Annotations"), None, outputDir, 0.7)
+if Format == "XML":
+    annotationFiles, size =  XmlConverter().convert(os.path.join(outputDir, "images"), os.path.join("Dataset", CASE, "Annotations"),  outputDir, os.path.join("Dataset", CASE, "label_map.xml"), 0.7)
+else: 
+    annotationFiles, size =  JsonConverter().convert(os.path.join(outputDir, "images"), os.path.join("Dataset", "Annotations"),  outputDir, None, 0.7)
 print( annotationFiles)
 
 # Creates TFrecord for Train and Eval Annotations
@@ -40,9 +60,10 @@ for annotationFile in annotationFiles:
 
 # Modify Pipeline file with the configuration data
 pipeline_config.setConfig(os.path.join(model_dir, "pipeline.config"), config, os.path.join(model_dir, "custom_pipeline.config"))
+outDir = "Traindata/model/FaceDetect/"
 
 # Prepare Training
-train_config = tf.estimator.RunConfig("Traindata/model/FaceDetect/")
+train_config = tf.estimator.RunConfig(outDir)
 train_and_eval_dict = model_lib.create_estimator_and_inputs(
     run_config=train_config,
     hparams=model_hparams.create_hparams(None),
@@ -82,3 +103,18 @@ else:
 
 # Currently only a single Eval Spec is allowed.
 tf.estimator.train_and_evaluate(estimator, train_spec, eval_specs[0])
+
+
+
+# Upload Results to S3
+checkpoints = sorted(os.listdir(outdir))[-3:]
+zip_file = os.path.join(outDir, 'ckpt.zip')
+with ZipFile(zip_file, 'w') as zip:
+    for c in checkpoints:
+        zip.write(os.path.join(outDir, c))
+    zip.close()
+try:
+    s3 = boto3.resources('s3')
+    s3.Bucket('federatedlearning').upload_file(zip_file, f'checkpoints/ckpt{time.time()}.zip')
+except:
+    logging.info("Cant upload results")
