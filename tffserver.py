@@ -120,14 +120,13 @@ def getTask(client_id):
             description: Request not in Timeslot
     """
     global clients
-    global activeTasks
+    global validKeys
 
     # check if request is in Timeslot (4Min Timeframe)
     if nextTime-120 <= time.time() <= nextTime+120:
         if client_id in clients:
             clients.remove(client_id)
             validKeys.append(client_id)
-            activeTasks += 1
             plan = db.plans.find_one({"_id": ObjectId(str(taskId))})
             if plan is None:
                 logging.info(f"cant find Task {taskId}")
@@ -193,16 +192,17 @@ def results(id):
             description: Invalid input
     """
     global data
-    global activeTasks
     global completedTasks
+    global validKeys
 
-    if nextTime+timeout-60 <= time.time() <= nextTime+timeout+60:
+    if nextTime <= time.time() <= nextTime+timeout:
         if id in validKeys:
             validKeys.remove(id)
-            trainresult = request.json
-            data[id] = trainresult
+            trainresult1 = request.json
+            trainresult2 = request.data
+            print(f'Data: {trainresult2}, JSON: {trainresult1}')
+            data[id] = trainresult1
             completedTasks += 1
-            activeTasks -= 1
             return 200
     else: 
         return 410
@@ -239,7 +239,7 @@ def uploadPlan():
         if plan['Time'] < time.time():
             logging.info("Timeerror")
             #return "Time not valid", 410
-            plan['Time'] = time.time()+120
+            plan['Time'] = time.time()+60
 
         dbId = db.plans.insert_one(plan).inserted_id
         taskId = dbId
@@ -317,7 +317,11 @@ def getStatus():
                             CompletedTasks:
                                 type: int
     """
-    return jsonify({ "RegisteredClients": registeredClients, "AcceptedClients": len(clients)+activeTasks+completedTasks, "ActiveTasks": activeTasks, "CompletedTasks": completedTasks })
+    global taskId
+
+    if time.time() > nextTime+timeout:
+        taskId == 0
+    return jsonify({"ActiveTask": False if taskId==0 else True ,"RegisteredClients": registeredClients, "AcceptedClients": len(clients)+len(validKeys)+completedTasks, "ActiveTasks": len(validKeys), "CompletedTasks": completedTasks })
 
 @app.route("/spec")
 def spec():
