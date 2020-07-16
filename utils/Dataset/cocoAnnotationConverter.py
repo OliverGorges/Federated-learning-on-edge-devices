@@ -14,13 +14,13 @@ class JsonConverter():
     annotationFiles = os.listdir(os.path.join(annotationDir))
     if not split == 1:
       sub = [annotationFiles[0:int(len(annotationFiles)*split)], annotationFiles[int(len(annotationFiles)*split):]]
-      train = self.createAnnotation(imageDir, sub[0], annotationDir, labelmap, outputPath, "Train")
-      eval = self.createAnnotation(imageDir, sub[1], annotationDir, labelmap, outputPath, "Eval")
-      return [train, eval], [len(sub[0]), len(sub[1])]
+      train, train_categories = self.createAnnotation(imageDir, sub[0], annotationDir, labelmap, outputPath, "Train")
+      eval, train_categories = self.createAnnotation(imageDir, sub[1], annotationDir, labelmap, outputPath, "Eval")
+      return [train, eval], [len(sub[0]), len(sub[1])], train_categories
     else:
-      train = self.createAnnotation(imageDir, annotationFiles, annotationDir, labelmap, outputPath, "Train")
+      train, train_categories = self.createAnnotation(imageDir, annotationFiles, annotationDir, labelmap, outputPath, "Train")
       eval = ""
-      return [train, eval], [len(annotationFiles), 0]
+      return [train, eval], [len(annotationFiles), 0], train_categories
 
   def createAnnotation(self, imageDir, annotationFiles, annotationDir, labelmap, outputPath, tag="Train"):
     coco = {}
@@ -30,11 +30,24 @@ class JsonConverter():
 
     nrOfAnnotations = 0
 
-    categories.append({
-        "supercategory": "none",
-        "name": "face",
-        "id": 0
+    labelDict = {}
+    if labelmap is not None:
+      with open(labelmap) as json_file:
+        lables = json.load(json_file)
+        for label in labels:
+          labelDict[str(label['name'])] = int(label['id'])
+          categories.append({
+          "supercategory": label['supercategory'],
+          "name":  label['name'],
+          "id":  int(label['id'])
       })
+    else:
+      labels["face"] = 0
+      categories.append({
+          "supercategory": "none",
+          "name": "face",
+          "id": 0
+        })
 
     for i, fname in enumerate(annotationFiles):
       with open(os.path.join(annotationDir, fname)) as json_file:
@@ -86,13 +99,13 @@ class XmlConverter():
     annotationFiles = os.listdir(os.path.join(annotationDir))
     if not split == 1:
       sub = [annotationFiles[0:int(len(annotationFiles)*split)], annotationFiles[int(len(annotationFiles)*split):]]
-      train = self.createAnnotation(imageDir, sub[0], annotationDir, labelmap, outputPath, "Train")
-      eval = self.createAnnotation(imageDir, sub[1], annotationDir, labelmap, outputPath, "Eval")
-      return [train, eval], [len(sub[0]), len(sub[1])]
+      train, train_categories = self.createAnnotation(imageDir, sub[0], annotationDir, labelmap, outputPath, "Train")
+      eval, eval_categories = self.createAnnotation(imageDir, sub[1], annotationDir, labelmap, outputPath, "Eval")
+      return [train, eval], [len(sub[0]), len(sub[1])], train_categories
     else:
-      train = self.createAnnotation(imageDir, annotationFiles, annotationDir, labelmap, outputPath, "Train")
+      train, train_categories = self.createAnnotation(imageDir, annotationFiles, annotationDir, labelmap, outputPath, "Train")
       eval = ""
-      return [train, eval], [len(annotationFiles), 0]
+      return [train, eval], [len(annotationFiles), 0], train_categories
 
 
   def createAnnotation(self, imageDir, annotationFiles, annotationDir, labelmap, outputPath, tag="Train"):
@@ -160,7 +173,7 @@ class XmlConverter():
     with open(output, 'w') as outfile:
         json.dump(coco, outfile)
 
-    return output
+    return output, len(categories)
 
 
 
