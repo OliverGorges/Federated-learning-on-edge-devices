@@ -52,8 +52,8 @@ class JsonConverter():
     for i, fname in enumerate(annotationFiles):
       with open(os.path.join(annotationDir, fname)) as json_file:
         anno = json.load(json_file)
-        imageHeight = 640#480
-        imageWidth = 480#640
+        imageHeight = 480
+        imageWidth = 640
         images.append({
           "file_name": str(pathlib.Path(os.path.join(imageDir, anno["thermalImage"])).absolute()),
           "height": imageHeight,
@@ -64,10 +64,10 @@ class JsonConverter():
           obj = {}
           obj["id"] = nrOfAnnotations
           obj["category_id"] = labelDict[box["type"]]
-          x = int(box["bbox"]["xmin"] * imageWidth)
-          y = int(box["bbox"]["ymin"] * imageHeight)
-          width = int(box["bbox"]["xmax"]* imageWidth) - x
-          height = int(box["bbox"]["ymax"] * imageHeight) - y
+          x = int(box["bbox"]["xmin"] * imageHeight)
+          y = int(box["bbox"]["ymin"] * imageWidth)
+          width = int(box["bbox"]["xmax"]* imageHeight) - x
+          height = int(box["bbox"]["ymax"] * imageWidth) - y
           box = [x, y, width, height]
           obj["bbox"] = box
           obj["area"] = box[2] * box[3]
