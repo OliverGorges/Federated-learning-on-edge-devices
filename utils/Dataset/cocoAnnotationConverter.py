@@ -42,7 +42,7 @@ class JsonConverter():
           "id":  int(label['id'])
       })
     else:
-      labels["face"] = 0
+      labelDict["Face"] = 0
       categories.append({
           "supercategory": "none",
           "name": "face",
@@ -52,8 +52,8 @@ class JsonConverter():
     for i, fname in enumerate(annotationFiles):
       with open(os.path.join(annotationDir, fname)) as json_file:
         anno = json.load(json_file)
-        imageHeight = 60*8
-        imageWidth = 80*8
+        imageHeight = 640#480
+        imageWidth = 480#640
         images.append({
           "file_name": str(pathlib.Path(os.path.join(imageDir, anno["thermalImage"])).absolute()),
           "height": imageHeight,
@@ -63,12 +63,17 @@ class JsonConverter():
         for box in anno["objects"]:
           obj = {}
           obj["id"] = nrOfAnnotations
-          box = [int(box["bbox"]["xmin"] * imageWidth), int(box["bbox"]["ymin"] * imageHeight), int((box["bbox"]["xmax"] - box["bbox"]["xmin"]) * imageWidth), int((box["bbox"]["ymax"] - box["bbox"]["ymin"]) * imageHeight)]
+          obj["category_id"] = labelDict[box["type"]]
+          x = int(box["bbox"]["xmin"] * imageWidth)
+          y = int(box["bbox"]["ymin"] * imageHeight)
+          width = int(box["bbox"]["xmax"]* imageWidth) - x
+          height = int(box["bbox"]["ymax"] * imageHeight) - y
+          box = [x, y, width, height]
           obj["bbox"] = box
           obj["area"] = box[2] * box[3]
           obj["image_id"] = i
           obj["iscrowd"] = 1 if len(anno["objects"]) > 1 else 0
-          obj["category_id"] = 0
+          
           annotations.append(obj)
           nrOfAnnotations += 1
 
@@ -89,7 +94,7 @@ class JsonConverter():
     with open(output, 'w') as outfile:
         json.dump(coco, outfile)
 
-    return output
+    return output, len(categories)
 
 
 class XmlConverter():
@@ -147,7 +152,7 @@ class XmlConverter():
         box = detection.find("bndbox")
         obj = {}
         obj["id"] = nrOfAnnotations
-        box = [int(box.find("xmin").text), int(box.find("ymin").text), int(box.find("xmax").text), int(box.find("ymax").text)]
+        box = [int(box.find("xmin").text), int(box.find("ymin").text), int(box.find("xmax").text)-int(box.find("xmin").text) , int(box.find("ymax").text)-int(box.find("ymin").text)]
         obj["bbox"] = box
         obj["area"] = box[2] * box[3]
         obj["image_id"] = i
@@ -179,7 +184,7 @@ class XmlConverter():
 
 if __name__ == "__main__":
   #JsonConverter().convert(os.path.join("..", "..", "Dataset", "Images"), os.path.join("..", "..", "Dataset", "Annotations"), None, os.path.join("..", "..", "Traindata", "data", "tfrecords")  )
-  
-  folder = os.path.join(os.sep,"Users","olgorges","Downloads","667889_1176415_bundle_archive")
-  XmlConverter().convert( os.path.join(folder,"images"), os.path.join(folder,"annotations"), os.path.join(folder,"output"), os.path.join(folder,"label_map.xml") )
+
+  folder = os.path.join("Dataset", "ThermalFaceDetection")
+  JsonConverter().convert( os.path.join(folder,"Images"), os.path.join(folder,"Annotations"), os.path.join(folder,"Output"),None )
   print(f'Saved in {pathlib.Path(os.path.join("..", "..", "Dataset")).absolute()}')
