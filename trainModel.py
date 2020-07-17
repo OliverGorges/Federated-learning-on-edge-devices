@@ -42,12 +42,12 @@ for annotationFile in annotationFiles:
 pipeline_config.setConfig(os.path.join(model_dir, "pipeline.config"), config, os.path.join(model_dir, "custom_pipeline.config"))
 
 # Prepare Training
-train_config = tf.estimator.RunConfig("Traindata/model/FaceDetect/")
+train_config = tf.estimator.RunConfig("Traindata/model/FaceDetectLocal/")
 train_and_eval_dict = model_lib.create_estimator_and_inputs(
     run_config=train_config,
     hparams=model_hparams.create_hparams(None),
     pipeline_config_path=os.path.join(model_dir, "custom_pipeline.config"),
-    train_steps=10000,
+    train_steps=1000,
     sample_1_of_n_eval_examples=1,
     sample_1_of_n_eval_on_train_examples=(5))
 estimator = train_and_eval_dict['estimator']

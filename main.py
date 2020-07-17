@@ -72,13 +72,14 @@ def imageThread(frame):
     logging.debug(f"Runtime ImageThread:  {time.time() - t1} / Image {t2 - t1} / Prediction {time.time() - t2}")
     return frame
 
+
 def detectionThread(queue, inputDict, detector):
     t1 = time.time()
     detector.prepareImage(inputDict["Image"], inputDict["Scale"])
     
     inputDict["Faces"] = detector.detectFace()
     inputDict["Runtime"] = time.time() - t1
-    logging.debug(f"Runtime DetectionThread:  {time.time() - t1} ")
+    logging.debug(f"Runtime DetectionThread:  {time.time() - t1} Detections: {inputDict['Faces']['num_detections']}")
     queue.put(inputDict)
 
 # sample image
@@ -97,12 +98,13 @@ with ThreadPoolExecutor(max_workers=8) as executor:
         # Crop image from PiCam2
         liveFrame, size = c.cropImage(liveFrame)
 
-        #print(f'Tasks: {executor.getActiveCount()}')
+        # Starts Thread that gets the Images from the Thermal Camera and Predicts Faces on normal Image
         if detectionThread1 is None and thermalThread is None:
             thermalThread = executor.submit(thermalImageThread)
             detectionThread1 = multiprocessing.Process(target=detectionThread, args=(q, {"Image": liveFrame, "Size": size, "Scale": 1, "Thermal": False}, faceDetection1))
             detectionThread1.start()
         
+        # When the Thermalimage is taken, gives the result from the ThermalThread to a DetectionTread
         if thermalThread is not None:
             if thermalThread.done():
                 if  detectionThread2 is None:
@@ -118,6 +120,7 @@ with ThreadPoolExecutor(max_workers=8) as executor:
             #detectionThread1.join(1)
             #detectionThread2.join(1)
             #print(".")
+            #Weit til both detection Threads are done
             if q.qsize() >= 2:
                 frameDict = {}
                 print("Threads done")
