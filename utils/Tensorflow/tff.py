@@ -67,7 +67,7 @@ def readCheckpointValues(path, trainable=True):
         for v in var:
             data = v.value().eval(session=sess)
             data = data * randomMulti
-            values[str(v.value().name)] = (data, v.get_shape())
+            values[str(v.value().name)] = (data, v.get_shape().as_list())
         sess.close()
         return values
 

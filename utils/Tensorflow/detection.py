@@ -11,9 +11,11 @@ from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw
 import cv2
 
+from google.protobuf import text_format
 from object_detection.utils import ops as utils_ops
 from object_detection.utils import label_map_util
 from object_detection.utils import visualization_utils as vis_util
+from utils.Tensorflow.trainer import exportFrozenGraph
 
 
 class FaceDetection():
@@ -48,12 +50,21 @@ class FaceDetection():
             self.model = tf.compat.v2.saved_model.load(model, None)
             self.model = self.model.signatures['serving_default']
         elif self.modelType == "graph":
-            model = ''
+            model = ""
+            graph = ""
             for f in os.listdir(modelDir):
                 if f.endswith('.pb'):
                     model = os.path.join(modelDir, f)
-                    break
-            print(model)
+                    print(model)
+                if f.endswith('.pbtxt'):
+                    graph = os.path.join(modelDir, f)
+                    print(graph)
+
+            # Freeze graph 
+            if model == "" and not graph == "":
+                exportFrozenGraph(modelDir)
+                model = os.path.join(modelDir, "frozen_inference_graph.pb")
+                
             detection_graph = tf.Graph()
             with detection_graph.as_default():
                 od_graph_def = tf.GraphDef()
@@ -62,12 +73,14 @@ class FaceDetection():
                     od_graph_def.ParseFromString(serialized_graph)
                     tf.import_graph_def(od_graph_def, name='')
             self.model = detection_graph
+            return
+
             
 
     def prepareImage(self, image, scale):
         logging.debug("Prepare Image")
         width, height = image.shape[:2]
-        self.image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        self.image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         self.image = cv2.cv2.resize(image, (int(height / scale), int(width / scale)))
 
         return self.image
@@ -137,6 +150,7 @@ class FaceDetection():
                     # Follow the convention by adding back the batch dimension
                     tensor_dict['detection_masks'] = tf.expand_dims(
                         detection_masks_reframed, 0)
+               
                 image_tensor = tf.get_default_graph().get_tensor_by_name('image_tensor:0')
 
                 print("Run inference")
@@ -194,7 +208,8 @@ class FaceDetection():
         img_org = img.copy()
 
         #prepare Image
-        img = cv2.resize(img, (300, 300))
+        shape = self.input_details[0]['shape']
+        img = cv2.resize(img, (shape[1], shape[2]))
         img = img.reshape(1, img.shape[0], img.shape[1], img.shape[2]) # (1, 300, 300, 3)
         img = img.astype(np.float32)
 
@@ -206,11 +221,31 @@ class FaceDetection():
         # run
         self.interpreter.invoke()
         output_dict = {}
-        # get outpu tensor
-        output_dict['detection_boxes'] = self.interpreter.get_tensor(self.output_details[0]['index'])
-        output_dict['detection_classes'] = self.interpreter.get_tensor(self.output_details[1]['index'])
-        output_dict['detection_scores'] = self.interpreter.get_tensor(self.output_details[2]['index'])
-        output_dict['num_detections'] = int(self.interpreter.get_tensor(self.output_details[3]['index']))
+
+        num_detections = int(self.interpreter.get_tensor(self.output_details[3]['index']))
+        detection_boxes = np.squeeze(self.interpreter.get_tensor(self.output_details[0]['index']), axis=0)
+        classes = np.squeeze(self.interpreter.get_tensor(self.output_details[1]['index']), axis=0)
+        scores = np.squeeze(self.interpreter.get_tensor(self.output_details[2]['index']), axis=0)
+
+        print(scores)
+        print(classes)
+        detections = len(scores)
+        real_boxes = np.zeros((detections, 4))
+        real_classes = np.zeros((detections))
+        real_scores = np.zeros((detections))
+        real_num_detection = 0
+        for i in range(detections):
+            if scores[i] > 0.1:
+                real_boxes[real_num_detection] = np.absolute(detection_boxes[i])
+                real_scores[real_num_detection] = scores[i]
+                real_classes[real_num_detection] = classes[i]
+                real_num_detection += 1 
+
+        # get output tensor
+        output_dict['detection_boxes'] = real_boxes
+        output_dict['detection_classes'] = real_classes
+        output_dict['detection_scores'] = real_scores
+        output_dict['num_detections'] =  real_num_detection#int(self.interpreter.get_tensor(self.output_details[3]['index']))
 
         return output_dict
 

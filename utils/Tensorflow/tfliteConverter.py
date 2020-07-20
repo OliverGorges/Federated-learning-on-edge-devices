@@ -5,15 +5,25 @@ from object_detection import export_tflite_ssd_graph_lib
 from object_detection.protos import pipeline_pb2
 
 
-def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=0, ):
+def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, ):
 
     files = os.listdir(input_dir)
     if pipeline_config == "":
         pipeline_config = [pipe for pipe in files if pipe.endswith(".config")][0]
     pipeline_config_path = os.path.join(input_dir, pipeline_config)
 
-    ckeckpint_file = [chck for chck in files if chck.endswith(f"{checkpoint}.meta")][0]
-    trained_checkpoint_prefix = os.path.join(input_dir, ckeckpint_file[:-5])
+    ckeckpint_file = ""
+    for chck in sorted(files):
+        if chck.endswith(".meta"):
+            ckeckpint_file = chck[:-5]
+            # Stop search when the requested was found
+            if chck.endswith(str(checkpoint)): 
+                break
+
+    #ckeckpint_file = [chck for chck in files if chck.endswith(f"{checkpoint}.meta")][0]
+    trained_checkpoint_prefix = os.path.join(input_dir, ckeckpint_file)
+
+
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -31,6 +41,8 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=0, ):
         )
 
     converter.allow_custom_ops = True
+    #converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.add_postprocessing_op = True
     tflite_model = converter.convert()
     open(os.path.join(output_dir, "converted_model.tflite"), "wb").write(tflite_model)
 
@@ -52,6 +64,7 @@ def export_tflite_ssd_graph(pipeline_config_path, trained_checkpoint_prefix, out
         max_classes_per_detection, use_regular_nms)
 
 if __name__ == "__main__":
-    inputDir = os.path.join("Traindata", "model", "FaceDetect")
+    
+    inputDir = os.path.join("Traindata", "model", "MaskDetect20k")
     outputDir = os.path.join("Traindata", "model", "TFLite")
-    convertModel(inputDir, outputDir, checkpoint=5081)
+    convertModel(inputDir, outputDir, checkpoint=18431)

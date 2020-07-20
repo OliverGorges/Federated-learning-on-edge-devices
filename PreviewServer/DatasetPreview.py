@@ -3,7 +3,11 @@ import os
 import json
 from io import BytesIO
 from PIL import Image, ImageDraw
-dataset = os.path.join("..", "Dataset")
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
+dataset = os.path.join("..", "Dataset", "ThermalFaceDetection")
 
 app = Flask(__name__)
 
@@ -26,14 +30,14 @@ def getImage(id):
         data = json.load(json_file)
         for obj in data["objects"]:
             bbox = [
-                obj["bbox"]["xmin"] * size[1], 
-                obj["bbox"]["ymin"] * size[0],
+                obj["bbox"]["xmin"] * size[1], #480
+                obj["bbox"]["ymin"] * size[0], #640
                 obj["bbox"]["xmax"] * size[1],
                 obj["bbox"]["ymax"] * size[0]
             ]
 
             draw = ImageDraw.Draw(img)
-            draw.rectangle(bbox, outline=(0, 255, 0), width=3)
+            draw.rectangle(bbox, outline=(255, 0, 0), width=3)
 
     return serve_pil_image(img)
 
@@ -73,4 +77,7 @@ def deleeteAnnoation(id):
     os.remove(os.path.join(dataset, "ThermalImages", id+".jpg"))
     os.remove(os.path.join(dataset, "Annotations", id+".json"))
     return '', 200
-app.run(host='0.0.0.0')
+
+if __name__== '__main__':
+    app.run()
+    #app.run(host='0.0.0.0')

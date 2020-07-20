@@ -4,3 +4,4 @@
 *.pyo
 .vscode
 tfmodels/
+aws/
