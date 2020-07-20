@@ -1,3 +1,10 @@
+"""
+Classes to Convert different kind of Foarmats into the Coco Dataformat used in Modeltraining
+
+Coco Dataformat:
+https://cocodataset.org/#format-data
+"""
+
 import json
 import xml.etree.ElementTree as ET
 import os
@@ -5,12 +12,22 @@ import logging
 from datetime import datetime
 import pathlib
 
-# Coco Dataformat
-#https://cocodataset.org/#format-data
+
 
 class JsonConverter():
+  """
+  Converter from Single Json annotation file to Coco annoations
+  """
 
   def convert(self, imageDir, annotationDir, outputPath, labelmap=None, split=0.7):
+    """
+    Entry method
+    imageDir: Folder with imagefiles
+    annotationDir: Folder with annotations files in json format
+    outputPath: Folder where the new annotationfiles will be stored
+    labelmap: Lablemap in jsonformat TODO: Does not convert to pbtxt, nedds to be added
+    split: Train Eval Split
+    """
     annotationFiles = os.listdir(os.path.join(annotationDir))
     if not split == 1:
       sub = [annotationFiles[0:int(len(annotationFiles)*split)], annotationFiles[int(len(annotationFiles)*split):]]
@@ -23,13 +40,22 @@ class JsonConverter():
       return [train, eval], [len(annotationFiles), 0], train_categories
 
   def createAnnotation(self, imageDir, annotationFiles, annotationDir, labelmap, outputPath, tag="Train"):
+    """
+    Method to creat Annoation File
+    imageDir: Folder with imagefiles
+    annotationDir: Folder with annotations files in json format
+    outputPath: Folder where the new annotationfiles will be stored
+    labelmap: Lablemap in jsonformat TODO: Does not convert to pbtxt, nedds to be added
+    tag: Train, Eval, Test
+    """
     coco = {}
     images = []
     annotations = []
     categories = []
 
     nrOfAnnotations = 0
-
+    # Write Labelmap in Annoation file and creat dict for labelmapping
+    # Default = one label for Face
     labelDict = {}
     if labelmap is not None:
       with open(labelmap) as json_file:
@@ -54,12 +80,14 @@ class JsonConverter():
         anno = json.load(json_file)
         imageHeight = 480
         imageWidth = 640
+        # Add all images
         images.append({
           "file_name": str(pathlib.Path(os.path.join(imageDir, anno["thermalImage"])).absolute()),
           "height": imageHeight,
           "width": imageWidth,
           "id": i
         })
+        # Add all objects
         for box in anno["objects"]:
           obj = {}
           obj["id"] = nrOfAnnotations
@@ -77,7 +105,7 @@ class JsonConverter():
           annotations.append(obj)
           nrOfAnnotations += 1
 
-
+    # Add Dataset info
     coco["info"] = {
       "description": "Thermal FaceDetection",
       "version": "1.0",
@@ -86,6 +114,7 @@ class JsonConverter():
       "date_created": datetime.now().strftime("%d/%m/%Y")
     }
 
+    # Write AnnotaionFile
     coco["type"] = "instances"
     coco["images"] = images
     coco["annotations"] = annotations
@@ -98,9 +127,19 @@ class JsonConverter():
 
 
 class XmlConverter():
-
+  """
+  Converter from Single XML annotation file to Coco annoations
+  """
 
   def convert(self, imageDir, annotationDir, outputPath, labelmap=None, split=0.7):
+     """
+    Entry method
+    imageDir: Folder with imagefiles
+    annotationDir: Folder with annotations files in XML format
+    outputPath: Folder where the new annotationfiles will be stored
+    labelmap: Lablemap in XML format TODO: Does not convert to pbtxt, nedds to be added
+    split: Train Eval Split
+    """
     annotationFiles = os.listdir(os.path.join(annotationDir))
     if not split == 1:
       sub = [annotationFiles[0:int(len(annotationFiles)*split)], annotationFiles[int(len(annotationFiles)*split):]]
@@ -114,6 +153,14 @@ class XmlConverter():
 
 
   def createAnnotation(self, imageDir, annotationFiles, annotationDir, labelmap, outputPath, tag="Train"):
+    """
+    Method to creat Annoation File
+    imageDir: Folder with imagefiles
+    annotationDir: Folder with annotations files in json format
+    outputPath: Folder where the new annotationfiles will be stored
+    labelmap: Lablemap in jsonformat TODO: Does not convert to pbtxt, nedds to be added
+    tag: Train, Eval, Test
+    """
     coco = {}
     images = []
     annotations = []
@@ -122,6 +169,9 @@ class XmlConverter():
     
     nrOfAnnotations = 0
     labelDict = {}
+
+    # Write Labelmap in Annoation file and creat dict for labelmapping
+    # Default = one label for Face
     if labelmap is not None:
       labels = ET.parse(labelmap).getroot()
       for label in labels.findall('label'):
@@ -139,15 +189,18 @@ class XmlConverter():
           "id": 0
         })
 
+    # Read all files from the subset
     for i, fname in enumerate(annotationFiles):
       
       anno = ET.parse(os.path.join(annotationDir, fname)).getroot()
+      # Adds all images
       images.append({
         "file_name": str(pathlib.Path(os.path.join(imageDir, anno.find("filename").text)).absolute()),
         "height": int(anno.find('size').find('height').text),
         "width": int(anno.find('size').find('width').text),
         "id": i
       })
+      # Adds Objects
       for detection in anno.findall('object'):
         box = detection.find("bndbox")
         obj = {}
@@ -161,7 +214,7 @@ class XmlConverter():
         annotations.append(obj)
         nrOfAnnotations += 1
 
-
+    # Add Dataset Info
     coco["info"] = {
       "description": "Thermal FaceDetection",
       "version": "1.0",
@@ -169,7 +222,7 @@ class XmlConverter():
       "contributor": "Oliver Gorges",
       "date_created": datetime.now().strftime("%d/%m/%Y")
     }
-
+    # Write AnnoationFile
     coco["type"] = "instances"
     coco["images"] = images
     coco["annotations"] = annotations

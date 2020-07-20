@@ -1,6 +1,9 @@
 import cv2
 import logging
 
+"""
+Methods to process modelreuslts and Images
+"""
 
 def drawBoxes(image, detection, color=(0, 255, 0)):
     width, height = image.shape[:2]

@@ -1,5 +1,5 @@
 """
-Script that loads the values from a Checkpoint
+Mathods that are part of the Federated Process
 """
 
 import sys
@@ -11,6 +11,9 @@ import time
 import mpipe 
 
 def aggregateVariables(checkpoint_dicts):
+    """
+    Aggreagtes all values from the checkpoint_dicts to one checkpoint
+    """
     chkps = checkpoint_dicts
     aggregatedData = {}
     for key in chkps[0].keys():
@@ -22,8 +25,14 @@ def aggregateVariables(checkpoint_dicts):
         aggregatedData[key] = np.average([x[key][0] for x in chkps], axis=0, weights=[1 for x in chkps])
         print(aggregatedData[key])
     return aggregatedData
-    
+
 def writeCheckpointValues(data, ref, out):
+    """
+    Creates a new checkpoint files based on the new data and the metadata from the ref checkpoint
+    data: New Checkpointdata
+    ref: reference checkpoint for metadata and keys
+    out: output path
+    """
     tf.reset_default_graph()
     if isinstance(ref, str):
         graph = tf.compat.v1.train.import_meta_graph(model_dir) 
@@ -33,6 +42,7 @@ def writeCheckpointValues(data, ref, out):
         graph.as_default()
         tf.compat.v1.global_variables_initializer().run()
         var = tf.compat.v1.trainable_variables()
+        # assigns new data to there keys
         for v in var:
             try:
                 variable = v.value().eval(session=sess)
@@ -45,6 +55,11 @@ def writeCheckpointValues(data, ref, out):
         sess.close()
 
 def readCheckpointValues(path, trainable=True):
+    """
+    Reads raw data from Checkpoint file
+    path: path to checkpoint
+    trainable: load just trainable variables, Default: True
+    """
     model_dir = path[0]
     id = path[1]
     tf.reset_default_graph()
@@ -71,7 +86,11 @@ def readCheckpointValues(path, trainable=True):
         sess.close()
         return values
 
+
 def sendData(path, dest, endpoint, trainable=True):
+    """
+    Sends raw checkpoint data to another device/server
+    """
     pass
 
 if __name__ == "__main__":

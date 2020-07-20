@@ -2,7 +2,7 @@ from flask import Flask, send_file
 import os
 import json
 from io import BytesIO
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -62,12 +62,15 @@ def getThermalImage(id):
                 obj["bbox"]["ymax"] * size[0]
             ]
 
-            dot = (obj["meta"]["maxspotABSNorm"][0] * size[1], obj["meta"]["maxspotABSNorm"][1] * size[0])
-            dotcrd = [dot, dot]
+            dot = (obj["meta"]["maxspotABS"][1]*8 , obj["meta"]["maxspotABS"][0]*8)
+            dotcrd = (dot[0]-5, dot[1]-5, dot[0]+5, dot[1]+5)
+            print(dotcrd)
             draw = ImageDraw.Draw(img)
             draw.rectangle(bbox, outline=(0, 255, 0), width=3)
-            draw.point(dotcrd, fill=(255,192,203))
-            draw.text(dot, str(obj["meta"]["max"]/100 - 273.15), fill=(255,192,203))
+            draw.ellipse(dotcrd, fill=(0,0,255))
+            correction = 0.0
+            font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 16)
+            draw.text(dot, "{:.2f}".format(obj["meta"]["max"]/100 - 273.15 + correction), fill=(0, 0, 255), font= font)
 
     return serve_pil_image(img)
 

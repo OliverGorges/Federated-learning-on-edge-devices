@@ -111,6 +111,8 @@ def exportFrozenGraph(modelDir, input_shape=None ):
         if f.endswith(".meta"):
             trained_checkpoint_prefix = os.path.join(modelDir, f)[:-5]
 
+    if not input_shape:
+        input_shape = [None, 300, 300, 3]
     pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
     with tf.gfile.GFile(pipeline_config_path, 'r') as f:
         text_format.Merge(f.read(), pipeline_config)
@@ -158,7 +160,7 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
     # Modify Pipeline file with the configuration data
     pipeline_config.setConfig(os.path.join(modelDir, "pipeline.config"), config, os.path.join(modelOutput, "custom_pipeline.config"))
 
-    
+
 
     if not os.path.exists(modelOutput):
         os.makedirs(modelOutput)

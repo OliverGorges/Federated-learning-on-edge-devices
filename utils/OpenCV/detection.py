@@ -2,6 +2,10 @@ import cv2
 import os
 import logging
 
+"""
+FaceDetection with OpenCV
+"""
+
 
 class FaceDetection():
 
@@ -34,7 +38,7 @@ class FaceDetection():
         else:
             return self.faces
 
-
+    # Normale Boxes for annoationfiles
     def normalizeBoxes(self, image=None, faces=None):
         if not image:
             width, height = self.image.shape[:2]

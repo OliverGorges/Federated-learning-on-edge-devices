@@ -20,19 +20,20 @@ from utils.Tensorflow.trainer import exportFrozenGraph
 
 class FaceDetection():
 
-
-    """
-    model: model that should be Preloaded
-    isTFLite: Selection if the used model in TF or TFLite
-    """
+    
     def __init__(self, model="ssd_mobilenet_v2_coco_2018_03_29", modelType="savedmodel"):
+        """
+        model: model that should be Preloaded
+        modelType: supported types: tflite, savedmodel, graph
+        """
         modelDir = os.path.join('Traindata', 'model', model )
-        print(f'Load Model from: {modelDir}')
+        logging.info(f'Load Model from: {modelDir}')
         self.modelType = modelType
         tf.compat.v1.enable_eager_execution
 
         if self.modelType == "tflite":
             model = ''
+            # Checks folder for TFlite file
             for f in os.listdir(modelDir):
                 if f.endswith('.tflite'):
                     model = os.path.join(modelDir, f)
@@ -46,25 +47,28 @@ class FaceDetection():
             self.output_details = self.interpreter.get_output_details()
 
         elif self.modelType == "savedmodel":
+            # load saved model
             model = os.path.join(modelDir, "saved_model" )
             self.model = tf.compat.v2.saved_model.load(model, None)
             self.model = self.model.signatures['serving_default']
         elif self.modelType == "graph":
+            # loads model from checkpoins and graph
             model = ""
             graph = ""
             for f in os.listdir(modelDir):
                 if f.endswith('.pb'):
                     model = os.path.join(modelDir, f)
-                    print(model)
+                    logging.debug(model)
                 if f.endswith('.pbtxt'):
                     graph = os.path.join(modelDir, f)
-                    print(graph)
+                    logging.debug(graph)
 
             # Freeze graph 
             if model == "" and not graph == "":
                 exportFrozenGraph(modelDir)
                 model = os.path.join(modelDir, "frozen_inference_graph.pb")
-                
+
+            # Load Graph and write in in the model 
             detection_graph = tf.Graph()
             with detection_graph.as_default():
                 od_graph_def = tf.GraphDef()
@@ -76,7 +80,7 @@ class FaceDetection():
             return
 
             
-
+    # Convert OpenCV image for the use with Tensorflow
     def prepareImage(self, image, scale):
         logging.debug("Prepare Image")
         width, height = image.shape[:2]
@@ -84,8 +88,14 @@ class FaceDetection():
         self.image = cv2.cv2.resize(image, (int(height / scale), int(width / scale)))
 
         return self.image
-
+    
     def detectFace(self, image=None, normalized=True):
+        """
+        Entry Class for Detection
+        uses different methods based on the selected modelType
+        image: imagedata
+        normalized: returns the box in a normalized format, Default: True
+        """
         if not image:
             image = self.image
         #logging.debug(image)
@@ -98,7 +108,7 @@ class FaceDetection():
             self.detections = self.run_inference_on_graph(self.model, image)
         return self.detections
 
-
+    # Normale Boxes for annoationfiles
     def normalizeBoxes(self, image=None, faces=None):
         if not image:
             width, height = self.image.shape[:2]
@@ -122,7 +132,7 @@ class FaceDetection():
     def run_inference_on_graph(self, graph, image):
         with graph.as_default():
             with tf.Session() as sess:
-                print("Prepare Model")
+                logging.info("Prepare Model")
                 # Get handles to input and output tensors
                 ops = tf.get_default_graph().get_operations()
                 all_tensor_names = {output.name for op in ops for output in op.outputs}
@@ -153,7 +163,7 @@ class FaceDetection():
                
                 image_tensor = tf.get_default_graph().get_tensor_by_name('image_tensor:0')
 
-                print("Run inference")
+                logging.info("Run inference")
                 output_dict = sess.run(tensor_dict,
                                         feed_dict={image_tensor: np.expand_dims(image, 0)})
                 
@@ -183,7 +193,7 @@ class FaceDetection():
         # Convert to numpy arrays, and take index [0] to remove the batch dimension.
         # We're only interested in the first num_detections.
         num_detections = output_dict.pop('num_detections')
-        print(num_detections.numpy())
+        logging.debug(num_detections.numpy())
         output_dict = {key:value[0, :num_detections].numpy() 
                         for key,value in output_dict.items()}
         output_dict['num_detections'] = num_detections
@@ -218,24 +228,27 @@ class FaceDetection():
         self.interpreter.set_tensor(self.input_details[0]['index'], img)
 
 
-        # run
+        # run Model
         self.interpreter.invoke()
         output_dict = {}
 
+        # Foramts results
+        logging.debug(self.output_details)
         num_detections = int(self.interpreter.get_tensor(self.output_details[3]['index']))
         detection_boxes = np.squeeze(self.interpreter.get_tensor(self.output_details[0]['index']), axis=0)
         classes = np.squeeze(self.interpreter.get_tensor(self.output_details[1]['index']), axis=0)
         scores = np.squeeze(self.interpreter.get_tensor(self.output_details[2]['index']), axis=0)
 
-        print(scores)
-        print(classes)
+        logging.debug(scores)
+        logging.debug(classes)
+        # Sorts out low score boxes
         detections = len(scores)
         real_boxes = np.zeros((detections, 4))
         real_classes = np.zeros((detections))
         real_scores = np.zeros((detections))
         real_num_detection = 0
         for i in range(detections):
-            if scores[i] > 0.1:
+            if scores[i] > 0.6:
                 real_boxes[real_num_detection] = np.absolute(detection_boxes[i])
                 real_scores[real_num_detection] = scores[i]
                 real_classes[real_num_detection] = classes[i]

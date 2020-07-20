@@ -4,6 +4,14 @@ import os
 import logging
 
 def jsonAnnotaions(uuid, thermalData, faces, outputPath):
+    """
+    Sript to write Annotation Files
+    Input: 
+    uuid: uuid for this annoation, same as image and thermalimage uuid
+    thermalData: array with raw data from thermalcamera
+    faces: output from detection models (Keys: type, xmin, xmax, ymin, ymax)
+    outputPath: folder where the annoations are stored
+    """
     logging.info("Creat Annotaionset")
     # Create Annotationset
     annotation = {}
