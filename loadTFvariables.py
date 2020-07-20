@@ -17,36 +17,36 @@ print("Load Modded Checkpoint")
 
 if os.path.exists(out+".meta"):
     print("rerun")
-    graph = tf.compat.v1.train.import_meta_graph(out+".meta")   
+    saver = tf.compat.v1.train.import_meta_graph(out+".meta")   
 else:
     print("new run")
-    graph = tf.compat.v1.train.import_meta_graph(model_dir+".meta") 
+    saver = tf.compat.v1.train.import_meta_graph(model_dir+".meta") 
 
 
-#g = tf.compat.v1.get_default_graph()
+g = tf.compat.v1.get_default_graph()
+with g.as_default():
+    with tf.Session() as sess:
+        tf.compat.v1.global_variables_initializer().run()
+        var = tf.compat.v1.trainable_variables()
+        
+        #Modify values
+        v = var[1]
+        print(v.value())
+        data = v.value().eval(session=sess)
+        print(data)
+        ndata = data * 2
+        print(ndata)
 
-with tf.Session() as sess:
-    tf.compat.v1.global_variables_initializer().run()
-    var = tf.compat.v1.trainable_variables()
-    
-    #Modify values
-    v = var[1]
-    print(v.value())
-    data = v.value().eval(session=sess)
-    print(data)
-    ndata = data * 2
-    print(ndata)
+        assign_op = tf.compat.v1.assign(v, ndata)
+        sess.run(assign_op)
+        #v.load(ndata, sess)
 
-    #assign_op = tf.compat.v1.assign(v, ndata)
-    #sess.run(assign_op)
-    v.load(ndata, sess)
+        test =  tf.compat.v1.trainable_variables()
+        
+        print(test[1].value().eval())
 
-    test =  tf.compat.v1.trainable_variables()
-    
-    print(test[1].value().eval())
-
-    saver = tf.compat.v1.train.Saver(var)
-    saved_path = saver.save(sess, out)
-    print(saved_path)
+        #saver = tf.compat.v1.train.Saver(var)
+        saved_path = saver.save(sess, out)
+        print(saved_path)
 
 
