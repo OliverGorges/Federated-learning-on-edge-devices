@@ -130,6 +130,7 @@ class FaceDetection():
         return normFaces
 
     def run_inference_on_graph(self, graph, image):
+        image = cv2.resize(image, (300,300))
         with graph.as_default():
             with tf.Session() as sess:
                 logging.info("Prepare Model")

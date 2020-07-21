@@ -132,7 +132,7 @@ class XmlConverter():
   """
 
   def convert(self, imageDir, annotationDir, outputPath, labelmap=None, split=0.7):
-     """
+    """
     Entry method
     imageDir: Folder with imagefiles
     annotationDir: Folder with annotations files in XML format
