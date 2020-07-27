@@ -4,14 +4,20 @@ from utils.Dataset import pipeline_config
 import os
 from shutil import copy
 import pathlib
-import tensorflow as tf
+import tensorflow.compat.v2 as tf
+from object_detection import model_lib_v2
 import time
 import logging 
+import cv2
+import numpy as np
 from object_detection import model_hparams
 from object_detection import model_lib
 from google.protobuf import text_format
-from object_detection import exporter
+from object_detection import exporter_lib_v2
 from object_detection.protos import pipeline_pb2
+
+from object_detection.utils import config_util
+from object_detection.builders import model_builder
 import numpy
 
 logging.basicConfig(level=logging.DEBUG)
@@ -96,41 +102,31 @@ def prepareTFrecord(dataDir, annoDir, outputDir, labelmap=None, annoFormat=None,
     return config
 
 def exportFrozenGraph(modelDir, input_shape=None ):
-    """
-    python object_detection/export_inference_graph.py \
-        --input_type=${INPUT_TYPE} \
-        --pipeline_config_path=${PIPELINE_CONFIG_PATH} \
-        --trained_checkpoint_prefix=${TRAINED_CKPT_PREFIX} \
-        --output_directory=${EXPORT_DIR}
-    """
     pipeline_config_path=""
     trained_checkpoint_prefix = ""
+    trained_checkpoint = modelDir + "/checkpoint/"
     for f in sorted(os.listdir(modelDir)):
         if f.endswith(".config"):
             pipeline_config_path = os.path.join(modelDir, f)
-        if f.endswith(".meta"):
-            trained_checkpoint_prefix = os.path.join(modelDir, f)[:-5]
-
+        if f.endswith(".index"):
+            trained_checkpoint_prefix = os.path.join(modelDir, f)[:-6]
     if not input_shape:
         input_shape = [None, 300, 300, 3]
+      
+    print( trained_checkpoint_prefix)
     pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
-    with tf.gfile.GFile(pipeline_config_path, 'r') as f:
+    with tf.io.gfile.GFile(pipeline_config_path, 'r') as f:
         text_format.Merge(f.read(), pipeline_config)
 
-    exporter.export_inference_graph(
-        "image_tensor", pipeline_config, trained_checkpoint_prefix,
-        modelDir, input_shape=input_shape,
-        write_inference_graph=True)
+    exporter_lib_v2.export_inference_graph(
+        "float_image_tensor", pipeline_config, trained_checkpoint, modelDir)
 
 
-def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000):
-    #TF GPUConfig
-    tfConfig = tf.ConfigProto()
-    tfConfig.gpu_options.allow_growth = True
-    sess = tf.Session(config=tfConfig)
-
-    
+def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1, eval_checkpoint=False):    
     modelDir = os.path.join("Traindata", "model", model)
+
+    if not os.path.exists(modelOutput):
+        os.makedirs(modelOutput)
 
     # Create Pipeline Config
     config = {}
@@ -152,58 +148,84 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
             config["eval_input"] = tfRecordsConfig["eval_input"]
             config["num_eval"] = tfRecordsConfig["num_eval"]    
     config["label_map"] = str(pathlib.Path(os.path.join(dataDir, "labelmap.pbtxt")).absolute())
-    config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir,  "model.ckpt")).absolute())
+
+    # Check if there are checkpoints from older runs
+    checkpoint = None
+    for f in os.listdir(modelOutput):
+        if f.endswith(".index"):
+            checkpoint = os.path.join(modelOutput, f)[:-6]
+
+    if checkpoint is None:
+        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", "ckpt-0")).absolute())
+    else:
+        config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
 
     
     config['num_classes'] = tfRecordsConfig['num_classes']
 
+    
+    #pipeline_config = 'models/research/object_detection/configs/tf2/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8.config'
+    pipeline_config_path = os.path.join(modelOutput, "custom_pipeline.config")
     # Modify Pipeline file with the configuration data
-    pipeline_config.setConfig(os.path.join(modelDir, "pipeline.config"), config, os.path.join(modelOutput, "custom_pipeline.config"))
+    pipeline_config.setConfig(os.path.join(modelDir, "pipeline.config"), config, pipeline_config_path)
 
 
+   
 
-    if not os.path.exists(modelOutput):
-        os.makedirs(modelOutput)
+    # TF2
+    tf.keras.backend.clear_session()
+    
 
-    # Prepare Training
-    train_config = tf.estimator.RunConfig(modelOutput)
-    train_and_eval_dict = model_lib.create_estimator_and_inputs(
-        run_config=train_config,
-        hparams=model_hparams.create_hparams(None),
-        pipeline_config_path=os.path.join(modelOutput, "custom_pipeline.config"),
-        train_steps=steps,
-        sample_1_of_n_eval_examples=1,
-        sample_1_of_n_eval_on_train_examples=(5))
-    estimator = train_and_eval_dict['estimator']
-    train_input_fn = train_and_eval_dict['train_input_fn']
-    eval_input_fns = train_and_eval_dict['eval_input_fns']
-    eval_on_train_input_fn = train_and_eval_dict['eval_on_train_input_fn']
-    predict_input_fn = train_and_eval_dict['predict_input_fn']
-    train_steps = train_and_eval_dict['train_steps']
+    tf.config.set_soft_device_placement(True)
 
-    if False:
-        if False:
-            name = 'training_data'
-            input_fn = eval_on_train_input_fn
-        else:
-            name = 'validation_data'
-            # The first eval input will be evaluated.
-            input_fn = eval_input_fns[0]
-        if False:
-            estimator.evaluate(input_fn,
-                                steps=10,
-                                checkpoint_path=tf.train.latest_checkpoint(modelDir))
-        else:
-            model_lib.continuous_eval(estimator, modelDir, input_fn,train_steps, name)
+    if eval_checkpoint:
+        model_lib_v2.eval_continuously(
+            pipeline_config_path= pipeline_config_path,
+            model_dir= modelOutput,
+            train_steps= steps,
+            sample_1_of_n_eval_examples= 1,
+            sample_1_of_n_eval_on_train_examples=(1),
+            checkpoint_dir=checkpoint,
+            wait_interval=300, timeout=3600)
     else:
-        train_spec, eval_specs = model_lib.create_train_and_eval_specs(
-            train_input_fn,
-            eval_input_fns,
-            eval_on_train_input_fn,
-            predict_input_fn,
-            train_steps,
-            eval_on_train_data=False)
+        
+        if num_workers > 1:
+            strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+        else:
+            strategy = tf.compat.v2.distribute.MirroredStrategy()
 
-    # Currently only a single Eval Spec is allowed.
-    tf.estimator.train_and_evaluate(estimator, train_spec, eval_specs[0])
+        with strategy.scope():
+            model_lib_v2.train_loop(
+                pipeline_config_path=pipeline_config_path,
+                model_dir=modelOutput,
+                train_steps=steps)
+
+"""
+    tf.config.set_soft_device_placement(True)
+
+    if True:
+        model_lib_v2.eval_continuously(
+            pipeline_config_path=os.path.join(modelOutput, "custom_pipeline.config"),
+            model_dir=modelOutput,
+            train_steps=steps,
+            sample_1_of_n_eval_examples=1,
+            sample_1_of_n_eval_on_train_examples=(5),
+            checkpoint_dir=os.path.join(modelDir, "checkpoint"),
+            wait_interval=300)
+    else:
+        
+        if workers > 1:
+            strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+        else:
+            strategy = tf.compat.v2.distribute.MirroredStrategy()
+
+        with strategy.scope():
+            model_lib_v2.train_loop(
+                pipeline_config_path=os.path.join(modelOutput, "custom_pipeline.config"),
+                model_dir=modelOutput,
+                train_steps=steps,
+                use_tpu=False)
+
+"""
+
 

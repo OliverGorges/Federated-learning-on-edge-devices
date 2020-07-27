@@ -37,7 +37,7 @@ def setConfig(file, Values, output=None):
 
     config_text = text_format.MessageToString(pipeline_config)  
     #print(config_text)                                                                                                                                                                                                      
-    with tf.gfile.Open(output, "wb") as f:                                                                                                                                                                                                                       
+    with tf.io.gfile.GFile(output, "wb") as f:                                                                                                                                                                                                                       
         f.write(config_text)                                                                                                                                                                                                                                          
 
 

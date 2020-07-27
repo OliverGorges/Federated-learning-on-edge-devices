@@ -8,7 +8,7 @@ from zipfile import ZipFile
 import time
 import logging 
 
-task = "test001"
+task = "test002"
 case = "MaskDetection"
 annoformat = "XML"
 data = "Images"
@@ -37,7 +37,6 @@ if split > 1:
         copy(os.path.join(dataDir, "labelmap.pbtxt"), os.path.join(subDir, "labelmap.pbtxt"))
         if not os.path.exists(subResults):
             os.mkdir(subResults)
-
         tfrecordConfig = prepareTFrecord(augImages[i], augAnnotations[i], subDir, labelmap=labelmap, annoFormat=annoformat, split=0.7)
 
         trainer(subResults, subDir,  tfRecordsConfig=tfrecordConfig, model= "ssd_mobilenet_v2_coco_2018_03_29", steps=10)
@@ -47,7 +46,7 @@ else:
             os.mkdir(result)
     tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.7)
 
-    trainer(result, dataDir, tfRecordsConfig=tfrecordConfig, model= "ssd_mobilenet_v2_coco_2018_03_29", steps=10)
+    trainer(result, dataDir, tfRecordsConfig=tfrecordConfig, model= "tf2_mobilenet", steps=1000)
         
 if save:
     # Upload Results to S3
