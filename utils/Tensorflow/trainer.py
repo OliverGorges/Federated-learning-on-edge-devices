@@ -104,22 +104,24 @@ def prepareTFrecord(dataDir, annoDir, outputDir, labelmap=None, annoFormat=None,
 def exportFrozenGraph(modelDir, input_shape=None ):
     pipeline_config_path=""
     trained_checkpoint_prefix = ""
-    trained_checkpoint = modelDir + "/checkpoint/"
+    trained_checkpoint = os.path.join(modelDir, "checkpoint")
     for f in sorted(os.listdir(modelDir)):
         if f.endswith(".config"):
             pipeline_config_path = os.path.join(modelDir, f)
+    for f in sorted(os.listdir(trained_checkpoint)):
         if f.endswith(".index"):
-            trained_checkpoint_prefix = os.path.join(modelDir, f)[:-6]
+            trained_checkpoint_prefix = os.path.join(trained_checkpoint, f)[:-6]
     if not input_shape:
-        input_shape = [None, 300, 300, 3]
+        input_shape = [None, 320, 320, 3]
       
-    print( trained_checkpoint_prefix)
+    print(trained_checkpoint_prefix)
     pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
     with tf.io.gfile.GFile(pipeline_config_path, 'r') as f:
         text_format.Merge(f.read(), pipeline_config)
 
+    outputDir = os.path.join("Traindata", "output", "ctest001")
     exporter_lib_v2.export_inference_graph(
-        "float_image_tensor", pipeline_config, trained_checkpoint, modelDir)
+        "float_image_tensor", pipeline_config, trained_checkpoint,  outputDir)
 
 
 def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1, eval_checkpoint=False):    

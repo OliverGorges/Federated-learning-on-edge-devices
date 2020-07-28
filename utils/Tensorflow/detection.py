@@ -26,16 +26,28 @@ class FaceDetection():
         model: model that should be Preloaded
         modelType: supported types: tflite, savedmodel, graph
         """
-        modelDir = os.path.join('Traindata', 'model', model )
+        modelDir = os.path.join('Traindata', 'output', model )
         logging.info(f'Load Model from: {modelDir}')
         self.modelType = modelType
         tf.compat.v1.enable_eager_execution
 
         if self.modelType == "tflite":
-           pass
+            model = ''
+            # Checks folder for TFlite file
+            for f in os.listdir(modelDir):
+                if f.endswith('.tflite'):
+                    model = os.path.join(modelDir, f)
+                    break
+            if model == '': raise Exception(f'No TFLite model found in {modelDir}')
+            
+            # load model
+            self.interpreter = tf.lite.Interpreter(model_path=model)
+            self.interpreter.allocate_tensors()
+            self.input_details = self.interpreter.get_input_details()
+            self.output_details = self.interpreter.get_output_details()
 
         elif self.modelType == "savedmodel":
-            self.model = tf.saved_model.load(model)
+            self.model = tf.saved_model.load(modelDir)
         elif self.modelType == "graph":
             pass
 
@@ -174,10 +186,15 @@ class FaceDetection():
 
     def run_inference_on_tflite(self, img):
 
+        logging.info("###############")
+        logging.info(self.input_details)
+        logging.info(self.output_details)
+
         img_org = img.copy()
 
         #prepare Image
         shape = self.input_details[0]['shape']
+        print(shape)
         img = cv2.resize(img, (shape[1], shape[2]))
         img = img.reshape(1, img.shape[0], img.shape[1], img.shape[2]) # (1, 300, 300, 3)
         img = img.astype(np.float32)
@@ -192,14 +209,17 @@ class FaceDetection():
         output_dict = {}
 
         # Foramts results
-        logging.debug(self.output_details)
-        num_detections = int(self.interpreter.get_tensor(self.output_details[3]['index']))
-        detection_boxes = np.squeeze(self.interpreter.get_tensor(self.output_details[0]['index']), axis=0)
-        classes = np.squeeze(self.interpreter.get_tensor(self.output_details[1]['index']), axis=0)
-        scores = np.squeeze(self.interpreter.get_tensor(self.output_details[2]['index']), axis=0)
-
-        logging.debug(scores)
-        logging.debug(classes)
+        #num_detections = int(self.interpreter.get_tensor(self.output_details[3]['index']))
+        results = np.squeeze(self.interpreter.get_tensor(self.output_details[0]['index']), axis=0)
+        
+        detection_boxes =  [i[:4] for i in results]
+        classes = [i[4] for i in results]
+        scores =  [i[5] for i in results]
+        #classes = np.squeeze(self.interpreter.get_tensor(self.output_details[1]['index']), axis=0)
+        #scores = np.squeeze(self.interpreter.get_tensor(self.output_details[2]['index']), axis=0)
+        #logging.debug(detection_boxes)
+        #logging.debug(scores)
+        #logging.debug(classes)
         # Sorts out low score boxes
         detections = len(scores)
         real_boxes = np.zeros((detections, 4))
@@ -207,7 +227,7 @@ class FaceDetection():
         real_scores = np.zeros((detections))
         real_num_detection = 0
         for i in range(detections):
-            if scores[i] > 0.6:
+            if scores[i] > 0.0:
                 real_boxes[real_num_detection] = np.absolute(detection_boxes[i])
                 real_scores[real_num_detection] = scores[i]
                 real_classes[real_num_detection] = classes[i]

@@ -4,6 +4,9 @@ from google.protobuf import text_format
 from object_detection import export_tflite_ssd_graph_lib
 from object_detection.protos import pipeline_pb2
 
+from object_detection.utils import config_util
+from object_detection.builders import model_builder
+import numpy as np
 
 """
 Converter form trained checkpoints/graph to a tflite graph
@@ -16,6 +19,72 @@ TODO: Problem with Conversion, results not usable
 
 
 def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, ):
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    
+    files = os.listdir(input_dir)
+    if pipeline_config == "":
+        pipeline_config = [pipe for pipe in files if pipe.endswith(".config")][0]
+    pipeline_config_path = os.path.join(input_dir, pipeline_config)
+
+
+    # Find latest or given checkpoint
+    checkpoint_file = ""
+    checkpointDir = os.path.join(input_dir, 'checkpoint')
+    for chck in sorted(os.listdir(checkpointDir)):
+        if chck.endswith(".index"):
+            checkpoint_file = chck[:-6]
+            # Stop search when the requested was found
+            if chck.endswith(str(checkpoint)): 
+                break
+    print("#####################################")
+    print(checkpoint_file)
+    print("#####################################")
+    #ckeckpint_file = [chck for chck in files if chck.endswith(f"{checkpoint}.meta")][0]
+    trained_checkpoint_prefix = os.path.join(checkpointDir, checkpoint_file)
+
+
+    configs = config_util.get_configs_from_pipeline_file(pipeline_config_path)
+    detection_model = model_builder.build(configs['model'], is_training=False)
+
+    ckpt = tf.compat.v2.train.Checkpoint(
+        model=detection_model)
+    ckpt.restore(trained_checkpoint_prefix).expect_partial()
+
+
+    class MyModel(tf.keras.Model):
+        def __init__(self, model):
+            super(MyModel, self).__init__()
+            self.model = model
+            self.seq = tf.keras.Sequential([
+                tf.keras.Input([320,320,3], 1),
+            ])
+
+        def call(self, x):
+            x = self.seq(x)
+            images, shapes = self.model.preprocess(x)
+            prediction_dict = self.model.predict(images, shapes)
+            detections = self.model.postprocess(prediction_dict, shapes)
+            boxes = detections['detection_boxes']
+            scores = detections['detection_scores'][:,:,None]
+            classes = detections['detection_classes'][:,:,None]
+            combined = tf.concat([boxes, classes, scores], axis=2)
+            return combined
+
+    km = MyModel(detection_model)
+
+    y = km.predict(np.random.random((1,320,320,3)).astype(np.float32))
+    print(y)
+    converter = tf.lite.TFLiteConverter.from_keras_model(km)
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+    converter.experimental_new_converter = True
+    converter.allow_custom_ops = False
+    tflite_model = converter.convert()
+
+    open(os.path.join(output_dir, 'model.tflite'), 'wb').write(tflite_model)
+
+
+    """
     # Load config
     files = os.listdir(input_dir)
     if pipeline_config == "":
@@ -55,10 +124,13 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
         )
 
     converter.allow_custom_ops = True
-    #converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.add_postprocessing_op = True
+    converter.experimental_new_converter =True
+    converter.target_spec.supported_op = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
     tflite_model = converter.convert()
     open(os.path.join(output_dir, "converted_model.tflite"), "wb").write(tflite_model)
+    """
 
 
 
