@@ -46,7 +46,7 @@ else:
             os.mkdir(result)
     tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.7)
 
-    trainer(result, dataDir, tfRecordsConfig=tfrecordConfig, model= "tf2_mobilenet", steps=1000)
+    trainer(result, dataDir, tfRecordsConfig=tfrecordConfig, model= "graphmod", steps=10)
         
 if save:
     # Upload Results to S3

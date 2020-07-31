@@ -26,7 +26,7 @@ class FaceDetection():
         model: model that should be Preloaded
         modelType: supported types: tflite, savedmodel, graph
         """
-        modelDir = os.path.join('Traindata', 'output', model )
+        modelDir = model #os.path.join('Traindata', 'model', model )
         logging.info(f'Load Model from: {modelDir}')
         self.modelType = modelType
         tf.compat.v1.enable_eager_execution

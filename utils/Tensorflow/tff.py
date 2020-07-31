@@ -8,7 +8,33 @@ import os
 import numpy as np
 import random 
 import time
-import mpipe 
+from shutil import copyfile
+
+from object_detection.utils import config_util
+from object_detection.builders import model_builder
+
+
+from utils.Tensorflow.tfliteConverter import convertModel
+
+# Dummy Model
+class MyModel(tf.keras.Model):
+    def __init__(self, model):
+        super(MyModel, self).__init__()
+        self.model = model
+        self.seq = tf.keras.Sequential([
+            tf.keras.Input([320,320,3], 1),
+        ])
+
+    def call(self, x):
+        x = self.seq(x)
+        images, shapes = self.model.preprocess(x)
+        prediction_dict = self.model.predict(images, shapes)
+        detections = self.model.postprocess(prediction_dict, shapes)
+        boxes = detections['detection_boxes']
+        scores = detections['detection_scores'][:,:,None]
+        classes = detections['detection_classes'][:,:,None]
+        combined = tf.concat([boxes, classes, scores], axis=2)
+        return combined
 
 def aggregateVariables(checkpoint_dicts):
     """
@@ -16,43 +42,68 @@ def aggregateVariables(checkpoint_dicts):
     """
     chkps = checkpoint_dicts
     aggregatedData = {}
+    for x in chkps:
+        print('########## Keys ###########')
+        #print(list(x.keys()))
     for key in chkps[0].keys():
-        print(key)
         if key == "id":
             continue
-        inputData = [x[key][0] for x in chkps]
-        print(inputData)
-        aggregatedData[key] = np.average([x[key][0] for x in chkps], axis=0, weights=[1 for x in chkps])
-        print(aggregatedData[key])
+        if x[key].ndim == 1: 
+            inputData = [x[key] for x in chkps]
+            aggregatedData[key] = np.average(inputData, axis=0, weights=[1 for x in chkps])
+        else:
+            inputData = [x[key][0] for x in chkps]
+            aggregatedData[key] = np.expand_dims(np.average(inputData, axis=0, weights=[1 for x in chkps]), axis=0)
+            
     return aggregatedData
 
-def writeCheckpointValues(data, ref, out):
+def writeCheckpointValues(data, pipeline, out, checkpoint_file):
     """
     Creates a new checkpoint files based on the new data and the metadata from the ref checkpoint
     data: New Checkpointdata
     ref: reference checkpoint for metadata and keys
     out: output path
     """
-    tf.reset_default_graph()
-    if isinstance(ref, str):
-        graph = tf.compat.v1.train.import_meta_graph(model_dir) 
-    else:
-        graph = ref
-    with tf.Session() as sess:
-        graph.as_default()
-        tf.compat.v1.global_variables_initializer().run()
-        var = tf.compat.v1.trainable_variables()
-        # assigns new data to there keys
-        for v in var:
-            try:
-                variable = v.value().eval(session=sess)
-                variable.load(data[v.value().name], sess)
-            except:
-                print(f"Missing Key {v.value().name}")
-        saver = tf.compat.v1.train.Saver(var)
-        saved_path = saver.save(sess, out)
-        print(saved_path)
-        sess.close()
+    tf.keras.backend.clear_session()
+
+    checkpoint_out = os.path.join(out, "checkpoint", "ckpt")
+    pipeline_out = os.path.join(out, "pipeline.config")
+
+    configs = config_util.get_configs_from_pipeline_file(pipeline)
+    copyfile(pipeline, pipeline_out)
+    detection_model = model_builder.build(configs['model'], is_training=True)
+    
+    checkpoint = tf.train.Checkpoint(model=detection_model)
+    checkpoint.restore( checkpoint_file).expect_partial()
+
+    dummy = np.random.random([1,320,320,3]).astype(np.float32)
+    y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([320, 320, 3], ndmin=2))
+
+    keys = 0
+    failed = 0
+    for v in detection_model.trainable_variables:
+        if v.name in data:
+            print (v.name)
+            if data[v.name].shape == v.shape:
+                print(v.numpy)
+                v.assign(data[v.name])
+                print(v.numpy)
+            keys += 1
+        else:
+            #print(v.name)
+            failed +=1
+    print(f'Keys: {keys}, Failed: {failed}')
+    for v in detection_model.trainable_variables:
+        if v.name in data:
+            print(f'Name: {v.name}')
+            print(v.numpy)
+            print(data[v.name])
+            break
+    save = tf.train.Checkpoint(model=detection_model)
+    save.save(file_prefix=checkpoint_out)
+
+
+
 
 def readCheckpointValues(path, trainable=True):
     """
@@ -60,31 +111,41 @@ def readCheckpointValues(path, trainable=True):
     path: path to checkpoint
     trainable: load just trainable variables, Default: True
     """
-    model_dir = path[0]
-    id = path[1]
-    tf.reset_default_graph()
-    print(f"Load Checkpoint {model_dir} {id}")
-    # Read Checkpoint
-    #sess = tf.compat.v1.InteractiveSession()
-    graph = tf.compat.v1.train.import_meta_graph(model_dir) 
+    tf.keras.backend.clear_session()
+    pipline = path[0]
+    checkpoint = path[1]
+    id = path[2]
+    values = {}
+    
+    randomModi = random.random() + 0.5 # random values between 0.5 and 1.5
+    print(f"Load Checkpoint {checkpoint} {id} {randomModi}")
+    configs = config_util.get_configs_from_pipeline_file(pipeline)
+    detection_model = model_builder.build(configs['model'], is_training=True)
 
-    #g = tf.compat.v1.get_default_graph()
+    ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
+    ckpt.restore(checkpoint).expect_partial()
+    dummy = np.random.random([1,320,320,3]).astype(np.float32)
+    y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([320, 320, 3], ndmin=2))
 
-    with tf.Session() as sess:
-        tf.compat.v1.global_variables_initializer().run()
-        if trainable:
-            var = tf.compat.v1.trainable_variables()
-        else:
-            var = tf.compat.v1.global_variables()
-        values = {"id": id}
-        randomMulti = random.random() + 0.5
-        #Modify values
-        for v in var:
-            data = v.value().eval(session=sess)
-            data = data * randomMulti
-            values[str(v.value().name)] = (data, v.get_shape().as_list())
-        sess.close()
-        return values
+    variables = detection_model.trainable_variables
+
+    for v in variables:
+        values[v.name] = v.numpy() #* randomModi
+    """
+    names = [weight.name for layer in model.layers for weight in layer.weights]
+    weights = model.get_weights()
+
+    for name, weight in zip(names, weights):
+        if name.startswith('my_model_'):
+            name = "my_model" + name[10:]
+        values[name] = weight
+    """
+    print(f"{len(values)} restored")
+    #for var in variables:
+        #values[var[0]] = ckpt.get_tensor(var[0]).numpy()
+
+    
+    return values
 
 
 def sendData(path, dest, endpoint, trainable=True):
@@ -95,9 +156,18 @@ def sendData(path, dest, endpoint, trainable=True):
 
 if __name__ == "__main__":
     
-    model_id = "FaceDetect"
-    model_dir = os.path.join("Traindata", "model", model_id, "model.ckpt-4990.meta")
-    checkpoints = [model_dir for x in range(2)]
+    model_id = "FederatedTestModel"
+    modelDir = os.path.join("Traindata", "model", model_id)
+    pipeline = os.path.join(modelDir, "custom_pipeline.config")
+    checkpoints = []
+    checkpoint = os.path.join(modelDir, "checkpoint", "ckpt-43")
+    nrbs = [42 ,43]
+    for nr in nrbs:
+        checkpoints.append(os.path.join(modelDir, "checkpoint", f"ckpt-{nr}"))
+    
+
+    output = os.path.join(modelDir, 'tflite')
+    convertModel(modelDir, output)
 
     print(checkpoints)
     #stage1 = mpipe.UnorderedStage(readCheckpointValues, len(checkpoints))
@@ -109,17 +179,16 @@ if __name__ == "__main__":
     t2 = time.time()
     print(f'Load Ref: {t2-t1}')
     for i, c in enumerate(checkpoints):
-        #pipe.put((c, i))
-        chkps.append(readCheckpointValues((c,i)))
-    #pipe.put(None)
-    #for result in pipe.results():
-        #chkps.append(result)
+        chkps.append(readCheckpointValues((pipeline, c , i)))
+        
     t3 = time.time()
     print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}')
     aggregatedData = aggregateVariables(chkps)
     t4 = time.time()
     print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}')
 
-    writeCheckpointValues(aggregatedData, model_dir, os.path.join("Traindata", "model", "graphmod", "modi_model.ckpt" ))
+    writeCheckpointValues(aggregatedData, pipeline, os.path.join("Traindata", "model", "graphmod" ), checkpoint)
     t5 = time.time()
     print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}, Save Checkpoint: {t5-t4}')
+    output = os.path.join("Traindata", "model", "graphmod", "tflite" )
+    convertModel(os.path.join("Traindata", "model", "graphmod") , output)

@@ -119,7 +119,10 @@ def exportFrozenGraph(modelDir, input_shape=None ):
     with tf.io.gfile.GFile(pipeline_config_path, 'r') as f:
         text_format.Merge(f.read(), pipeline_config)
 
-    outputDir = os.path.join("Traindata", "output", "ctest001")
+    outputDir = os.path.join(modelDir, "output")
+    if not os.path.exists(outputDir):
+        os.makedirs(outputDir)
+
     exporter_lib_v2.export_inference_graph(
         "float_image_tensor", pipeline_config, trained_checkpoint,  outputDir)
 
@@ -158,7 +161,7 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
             checkpoint = os.path.join(modelOutput, f)[:-6]
 
     if checkpoint is None:
-        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", "ckpt-0")).absolute())
+        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", "ckpt-21")).absolute())
     else:
         config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
 

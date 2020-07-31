@@ -18,24 +18,37 @@ TF 2.2.0 / Objectdtection 2.0 Tests
 
 class TestObjectDetection(unittest.TestCase):
 
-    def testMaskDetectionFaceDetectionAll(self):
+    def xtestMaskDetectionFaceDetectionAll(self):
         
-        image = cv2.imread(os.path.join("Testing", "sampleData", "maskDetection_norm_2.png"), cv2.IMREAD_COLOR)
-        modelDir = os.path.join('test002', 'saved_model')
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('maskdetect', 'saved_model')
         detector = FaceDetection(modelDir, "savedmodel")
         detector.prepareImage(image, 1)
         detections = detector.detectFace()
         print(detections)
     
         result = drawBoxes(image, detections)
-        cv2.imwrite(os.path.join("Testing", "sampleData","output.jpg"), result)
+        cv2.imwrite(os.path.join("Testing", "sampleData","output1.jpg"), result)
         #self.assertEqual(2, 2)
     
-    def xtestconvertSavedModel(self):
-        exportFrozenGraph(os.path.join('Traindata','model','maskdetect'))
+    def xtestMaskDetectionFaceDetectionAll1(self):
+        
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('graphmod', 'output', 'saved_model')
+        detector = FaceDetection(modelDir, "savedmodel")
+        detector.prepareImage(image, 1)
+        detections = detector.detectFace()
+        print(detections)
+    
+        result = drawBoxes(image, detections)
+        cv2.imwrite(os.path.join("Testing", "sampleData","output1.jpg"), result)
+        #self.assertEqual(2, 2)
 
-    def testTfliteConverter(self):
-        modelDir = os.path.join('Traindata','model','maskdetect')
+    def xtestconvertSavedModel(self):
+        exportFrozenGraph(os.path.join('Traindata','model','graphmod'))
+
+    def xtestTfliteConverter(self):
+        modelDir = os.path.join('Traindata','model','graphmod')
         output = os.path.join(modelDir, 'tflite')
         convertModel(modelDir, output)
 
@@ -61,26 +74,29 @@ class TestObjectDetection(unittest.TestCase):
         with tf.io.gfile.GFile(os.path.join(modelDir, "tflite", "model.tflite"), 'wb') as f:
             f.write(tflite_model)
 
-    def xtestTfliteDection(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "coco_test.jpg"), cv2.IMREAD_COLOR)
-        modelDir = os.path.join('tf2_mobilenet', 'tflite')
-        print(modelDir)
-        detector = FaceDetection( modelDir, 'tflite')
+    def testTfliteDection(self):
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('Traindata', 'model', 'graphmod')
+        output = os.path.join(modelDir, 'tflite')
+        #convertModel(modelDir, output)
+
+        detector = FaceDetection( output, 'tflite')
         detector.prepareImage(image, 1)
         detections = detector.detectFace()
-        print("Draw Boxes")
         result = drawBoxes(image, detections)
         cv2.imwrite(os.path.join("Testing", "sampleData","outputLite.jpg"), result)
 
     def testTfliteDection2(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "maskDetection_norm_2.png"), cv2.IMREAD_COLOR)
-        modelDir = os.path.join('test002', 'tflite')
-        print(modelDir)
-        detector = FaceDetection( modelDir, 'tflite')
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('Traindata', 'model', 'FederatedTestModel')
+        output = os.path.join(modelDir, 'tflite')
+        #convertModel(modelDir, output)
+
+        detector = FaceDetection( output, 'tflite')
         detector.prepareImage(image, 1)
         detections = detector.detectFace()
-        print("Draw Boxes")
         result = drawBoxes(image, detections)
         cv2.imwrite(os.path.join("Testing", "sampleData","outputLite2.jpg"), result)
+
 if __name__ == '__main__':
     unittest.main()
