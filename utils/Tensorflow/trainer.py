@@ -152,7 +152,7 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
         if "eval_input" in tfRecordsConfig:
             config["eval_input"] = tfRecordsConfig["eval_input"]
             config["num_eval"] = tfRecordsConfig["num_eval"]    
-    config["label_map"] = str(pathlib.Path(os.path.join(dataDir, "labelmap.pbtxt")).absolute())
+    config["label_map"] = str(pathlib.Path(os.path.join(modelDir, "labelmap.pbtxt")).absolute())
 
     # Check if there are checkpoints from older runs
     checkpoint = None
@@ -161,7 +161,12 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
             checkpoint = os.path.join(modelOutput, f)[:-6]
 
     if checkpoint is None:
-        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", "ckpt-21")).absolute())
+        print(os.listdir(os.path.join(modelDir, "checkpoint")))
+        for f in os.listdir(os.path.join(modelDir, "checkpoint")):
+            if f.endswith(".index"):
+                checkpoint = os.path.join(modelDir, "checkpoint", f)[:-6]
+        print(checkpoint)    
+        config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
     else:
         config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
 

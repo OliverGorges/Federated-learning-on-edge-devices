@@ -9,7 +9,15 @@ from utils.Tensorflow.tff import readCheckpointValues
 from utils.Tensorflow.trainer import trainer,  augmentData, prepareTFrecord
 import json
 
+
+task = "test002"
+case = "MaskDetection"
+annoformat = "XML"
+data = "Images"
+
 dataDir = os.path.join("TrainData","data")
+imgDir = os.path.join("Dataset", case, data)
+annoDir = os.path.join("Dataset", case, "Annotations")
 
 def default(obj):
     if type(obj).__module__ == numpy.__name__:
@@ -25,8 +33,11 @@ def trainWorker(q, id, task):
     print(task)
     subDir = os.path.join(dataDir, f'Subset{id}')
     subResults = os.path.join("TrainData", "output", f'Subset{id}')
-    trainer(subResults, subDir, model="ssd_mobilenet_v2_coco_2018_03_29", steps=10)
-    print("Train")
+    labelmap = os.path.join("Dataset","MaskDetection","label_map.xml")
+    tfrecordConfig = prepareTFrecord(os.path.join(subDir, "images"), os.path.join(subDir, "annotations"), subDir, labelmap=labelmap, annoFormat=annoformat, split=0.7)
+    t1 = time.time()
+    #trainer(subResults, subDir, tfRecordsConfig=tfrecordConfig, model='FederatedTestModel', steps=10)
+    print(f"Train {time.time()-t1}")
     q.put((subResults, task))
 
 def sendData(checkpointDir):
@@ -36,7 +47,7 @@ def run():
     clients = []
     task = []
     startTime = 0
-    nr_of_clients = 1
+    nr_of_clients = 2
 
 
     result = requests.get('http://127.0.0.1:5000/status').json()
@@ -74,7 +85,9 @@ def run():
 
     proc = []
     q = Queue()
-
+    print(len(task))
+    augImages, augAnnotations = augmentData(imgDir, annoDir, dataDir, len(task))
+    print(task)
     for i, t in enumerate(task):
         if t['Accepted']:
             p= Process(target=trainWorker, args=(q, i, t))
@@ -84,16 +97,16 @@ def run():
   
     for p in proc:
         p.join()
-
+    print("Tasks Done")
     for i in range(q.qsize()):
         res = q.get()
-
-
-
         checkpointDir = res[0]
         task = res[1]
-        checkpoint = sorted(os.listdir(checkpointDir)).pop()
-        valueDict = readCheckpointValues((os.path.join(checkpointDir, checkpoint), task["Key"]))
+        for files in os.listdir(checkpointDir):
+            if files.endswith(".index"):
+                checkpoint =  os.path.join(checkpointDir, files)[:-6]
+        pipeline = os.path.join(checkpointDir, "custom_pipeline.config")
+        valueDict = readCheckpointValues((pipeline,  checkpoint, task["Key"]))
         result = requests.post(f'http://127.0.0.1:5000/results/{task["Key"]}', json=json.loads(json.dumps(valueDict, default=default)))
         print(result.text)
 

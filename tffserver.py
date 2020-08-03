@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 import time
 import random
 from utils.Tensorflow import tff
@@ -36,6 +36,9 @@ registeredClients = 0
 validKeys = []
 completedTasks = 0
 
+@app.route('/')
+def index():
+    return send_file("index.html", mimetype='text/html')
 
 # Federaded Process
 
@@ -229,21 +232,25 @@ def uploadPlan():
     """
     global taskId
     global nextTime
+    if request.form:
+        plan = request.form.to_dict()
+    else:
+        plan = request.json
 
-    plan = request.json
     if request.method == 'POST':
         keys = ["Task", "Data", "Case", "ModelVersion", "Time", "MaxClients"]
         for key in keys:
             if not key in plan:
                 return f"Plan must incluse the key: {key}", 410
-        if plan['Time'] < time.time():
+        utime = int(plan['Time'])
+        if utime  < time.time():
             logging.info("Timeerror")
             #return "Time not valid", 410
-            plan['Time'] = time.time()+60
+            utime = time.time()+20
 
         dbId = db.plans.insert_one(plan).inserted_id
         taskId = dbId
-        nextTime = plan['Time']
+        nextTime = utime
         return f"Plan saved with the id {dbId}", 200
     else:
         # Update/Rerun Plan
@@ -251,10 +258,11 @@ def uploadPlan():
             return f"Plan must incluse the key: ID", 410
         if not "Time" in plan:
             return f"Plan must incluse the key: Time", 410
-        if plan['Time'] < time.time():
+        utime = int(plan['Time'])
+        if utime < time.time():
             logging.info("Timeerror")
             #return "Time not valid", 410
-            plan['Time'] = time.time()+120
+            utime = time.time()+120
 
         oldPlan = db.plans.find_one({"_id": ObjectId(str(plan['ID']))})
         oldPlan.pop("_id", None)

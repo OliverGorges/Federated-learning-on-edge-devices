@@ -112,7 +112,8 @@ def readCheckpointValues(path, trainable=True):
     trainable: load just trainable variables, Default: True
     """
     tf.keras.backend.clear_session()
-    pipline = path[0]
+    print(path)
+    pipeline = path[0]
     checkpoint = path[1]
     id = path[2]
     values = {}
