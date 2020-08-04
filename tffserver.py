@@ -21,9 +21,9 @@ data = {}
 
 SWAGGER_URL =  '/api/docs'
 swaggerui_blueprint = get_swaggerui_blueprint(
-    SWAGGER_URL, 
+    SWAGGER_URL,
     '/spec',
-    config={  
+    config={
         'app_name': "Federated Server"
     },
 )
@@ -45,7 +45,7 @@ def index():
 @app.route('/reg')
 def register():
     """
-    Register available Client 
+    Register available Client
     ---
     tags:
         - selection
@@ -75,7 +75,7 @@ def register():
                                 type: string
     """
     global registeredClients
-    global clients 
+    global clients
 
     registeredClients += 1
     if random.random() > 0.8:
@@ -98,7 +98,7 @@ def getTask(client_id):
     parameters:
       - in: path
         name: path
-        description: id from the registration that allows the client to participate in this phase 
+        description: id from the registration that allows the client to participate in this phase
         required: true
     responses:
         200:
@@ -153,12 +153,12 @@ def updateModel(id):
     parameters:
       - in: path
         name: path
-        description: id from the registration that allows the client to participate in this phase 
+        description: id from the registration that allows the client to participate in this phase
         required: true
     responses:
         200:
             description: Zip file with Model Checkpoint
-                    
+
     """
 
     modelDir = os.path.join("TrainData", "model", "FederatedModel")
@@ -186,7 +186,7 @@ def results(id):
     parameters:
           - in: body
             name: body
-            description: dictionary with all trainable parameters 
+            description: dictionary with all trainable parameters
             required: true
     responses:
         200:
@@ -207,7 +207,7 @@ def results(id):
             data[id] = trainresult1
             completedTasks += 1
             return 200
-    else: 
+    else:
         return 410
 
 # Internal endpoints
@@ -273,7 +273,7 @@ def uploadPlan():
         nextTime = plan['Time']
         return f"Plan saved with the id {dbId}", 200
 
-    
+
 
 @app.route('/aggregate')
 def aggregateResults():
@@ -336,4 +336,4 @@ def spec():
     return jsonify(swagger(app))
 
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
-app.run()
+app.run(host='0.0.0.0')
