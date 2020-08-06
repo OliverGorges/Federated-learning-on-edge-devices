@@ -9,15 +9,15 @@ import time
 import logging 
 
 task = "test002"
-case = "MaskDetection"
-annoformat = "XML"
-data = "Images"
+case = "ThermalFaceDetection"
+annoformat = "JSON"
+data = "ThermalImages"
 
 imgDir = os.path.join("Dataset", case, data)
 annoDir = os.path.join("Dataset", case, "Annotations")
 outDir = os.path.join("TrainData", "output", task)
 dataDir = os.path.join("TrainData","data")
-split = 0
+split = 5
 save = False
 
 #Find Labelmap
