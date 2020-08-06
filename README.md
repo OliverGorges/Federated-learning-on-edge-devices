@@ -1,6 +1,8 @@
 # Federated-learning-on-edge-devices
 Repository for my Bachelor thesis that demonstrates the concept of federated machine learning on edge devices
 
+## Virtual CLient
+This Branch contains the code for the virtual client image that is used to simulate multiple Raspberry Pi's
 
 
 

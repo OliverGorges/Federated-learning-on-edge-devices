@@ -9,7 +9,10 @@ from object_detection import model_lib_v2
 import time
 import logging 
 import cv2
+import boto3
 import numpy as np
+import json
+import xml.etree.ElementTree as ET
 from object_detection import model_hparams
 from object_detection import model_lib
 from google.protobuf import text_format
@@ -32,7 +35,7 @@ def splitList(data, i):
     result[i-1] = numpy.concatenate((result[i-1], rest))
     logging.debug([len(s) for s in result])
     return result
-
+    
 
 def augmentData(imageDir, annotationDir, outputDir, split=1):
     
@@ -130,6 +133,12 @@ def exportFrozenGraph(modelDir, input_shape=None ):
 def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1, eval_checkpoint=False):    
     modelDir = os.path.join("Traindata", "model", model)
 
+    if not os.path.exists(modelDir):
+        s3 = boto3.client('s3')
+        s3.download_file('federatedlearning-cg', f'model/{model}.zip',  os.path.join("Traindata", "model"))
+        with ZipFile(f'{modelDir}.zip', 'r') as zipObj:
+            zipObj.extractall(modelDir)
+
     if not os.path.exists(modelOutput):
         os.makedirs(modelOutput)
 
@@ -161,7 +170,12 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
             checkpoint = os.path.join(modelOutput, f)[:-6]
 
     if checkpoint is None:
-        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", "ckpt-21")).absolute())
+        checkpoint_prefix = "ckpt-1"
+        checkpointDir = os.path.join(modelDir, "checkpoint")
+        for f in os.listdir(checkpointDir):
+            if f.endswith(".index"):
+                checkpoint_prefix = os.path.join(checkpointDir, f)[:-6]
+        config["checkpoint"] = str(pathlib.Path(os.path.join(checkpointDir, checkpoint_prefix)).absolute())
     else:
         config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
 
