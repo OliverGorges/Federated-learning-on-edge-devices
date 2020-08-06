@@ -3,86 +3,100 @@ import cv2
 import time
 import logging
 import os 
+import numpy as np
+import tensorflow.compat.v2 as tf
 from utils.Tensorflow.detection import FaceDetection
 from utils.Tensorflow.postprocess import drawBoxes
+from utils.Tensorflow.trainer import exportFrozenGraph
+from utils.Tensorflow.tfliteConverter import convertModel
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+
+"""
+TF 2.2.0 / Objectdtection 2.0 Tests
+"""
 
 class TestObjectDetection(unittest.TestCase):
 
-    def testThermalFaceDetectionAll(self):
-        for f in os.listdir(os.path.join("Dataset", "ThermalFaceDetection", "ThermalImages")):
-            image = cv2.imread(os.path.join("Dataset", "ThermalFaceDetection", "ThermalImages", f),cv2.IMREAD_COLOR)
-            cv2.waitKey(0)
-            detector = FaceDetection(model="FaceDetect10k", modelType="graph")
-            detector.prepareImage(image, 1)
-            faces = detector.detectFace()
-            logging.debug(faces)
-            result = drawBoxes(image, faces) 
-            cv2.imshow("Mask", result)
-            cv2.waitKey(1)
-        self.assertEqual(faces['num_detections'], 2)
-
-    def testThermalFaceDetection(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_thermal_1_1.jpg"),cv2.IMREAD_COLOR)
-        cv2.waitKey(0)
-        detector = FaceDetection(model="FaceDetect10k", modelType="graph")
-        detector.prepareImage(image, 1)
-        faces = detector.detectFace()
-        logging.debug(faces)
-        result = drawBoxes(image, faces) 
-        cv2.imshow("Mask", result)
-        cv2.waitKey(1)
-        self.assertEqual(faces['num_detections'], 2)
-
-    def testMaskDetection(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "maskDetection_norm_2.png"),cv2.IMREAD_COLOR)
-        cv2.waitKey(0)
-        detector = FaceDetection(model="MaskDetect20k", modelType="graph")
-        detector.prepareImage(image, 1)
-        faces = detector.detectFace()
-        logging.debug(faces)
-        result = drawBoxes(image, faces) 
-        cv2.imshow("Mask", result)
-        cv2.waitKey(1)
-        self.assertEqual(faces['num_detections'], 2)
-
-    def testMaskDetectionLite(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "maskDetection_norm_2.png"),cv2.IMREAD_COLOR)
-        cv2.waitKey(0)
-        detector = FaceDetection(model="TFlite", modelType="tflite")
-        detector.prepareImage(image, 1)
-        faces = detector.detectFace()
-        logging.debug(faces)
-        result = drawBoxes(image, faces) 
-        cv2.imshow("Mask Lite", result)
-        cv2.waitKey(1)
-        self.assertEqual(faces['num_detections'], 2)
-    
-    def testCocoData(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "coco_test.jpg"), cv2.IMREAD_COLOR)
-        cv2.waitKey(0)
-        detector = FaceDetection(model="ssd_mobilenet_v2_coco_2018_03_29", modelType="graph")
-        detector.prepareImage(image, 1)
-        faces = detector.detectFace()
-        logging.debug(faces)
-        result = drawBoxes(image, faces)
-        cv2.imshow("Coco Lite", result)
-        cv2.waitKey(1)
-        self.assertEqual(faces['num_detections'], 2)
-
-    def testCocoDataLite(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "coco_test.jpg"), cv2.IMREAD_COLOR)
+    def xtestMaskDetectionFaceDetectionAll(self):
         
-        cv2.waitKey(0)
-        detector = FaceDetection(model="ssdlite", modelType="tflite")
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('maskdetect', 'saved_model')
+        detector = FaceDetection(modelDir, "savedmodel")
         detector.prepareImage(image, 1)
-        faces = detector.detectFace()
-        logging.debug(faces)
-        result = drawBoxes(image, faces)
-        cv2.imshow("Coco Lite", result)
-        cv2.waitKey(1)
-        self.assertEqual(faces['num_detections'], 2)
+        detections = detector.detectFace()
+        print(detections)
+    
+        result = drawBoxes(image, detections)
+        cv2.imwrite(os.path.join("Testing", "sampleData","output1.jpg"), result)
+        #self.assertEqual(2, 2)
+    
+    def xtestMaskDetectionFaceDetectionAll1(self):
+        
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('graphmod', 'output', 'saved_model')
+        detector = FaceDetection(modelDir, "savedmodel")
+        detector.prepareImage(image, 1)
+        detections = detector.detectFace()
+        print(detections)
+    
+        result = drawBoxes(image, detections)
+        cv2.imwrite(os.path.join("Testing", "sampleData","output1.jpg"), result)
+        #self.assertEqual(2, 2)
+
+    def xtestconvertSavedModel(self):
+        exportFrozenGraph(os.path.join('Traindata','model','graphmod'))
+
+    def xtestTfliteConverter(self):
+        modelDir = os.path.join('Traindata','model','graphmod')
+        output = os.path.join(modelDir, 'tflite')
+        convertModel(modelDir, output)
+
+    def xtestTfliteConverter(self):
+        modelDir = os.path.join('Traindata','model','maskdetect')
+        model = tf.saved_model.load(os.path.join(modelDir, "saved_model"))
+        concFunc = model.signatures[tf.saved_model.DEFAULT_SERVING_SIGNATURE_DEF_KEY]
+        concFunc.inputs[0].set_shape([1,300,300,3])
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concFunc])
+        
+        converter.allow_custom_ops=True
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.target_spec.supported_op = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
+        converter.inference_type = tf.float32
+        converter.post_training_quantize = True
+        #converter.inference_input_type = tf.int8
+        #converter.inference_output_type = tf.float32
+        converter.experimental_new_converter = False
+        tflite_model = converter.convert()
+
+        if not os.path.exists(os.path.join(modelDir, "tflite")):
+            os.makedirs(os.path.join(modelDir, "tflite"))
+        with tf.io.gfile.GFile(os.path.join(modelDir, "tflite", "model.tflite"), 'wb') as f:
+            f.write(tflite_model)
+
+    def testTfliteDection(self):
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('Traindata', 'model', 'graphmod')
+        output = os.path.join(modelDir, 'tflite')
+        #convertModel(modelDir, output)
+
+        detector = FaceDetection( output, 'tflite')
+        detector.prepareImage(image, 1)
+        detections = detector.detectFace()
+        result = drawBoxes(image, detections)
+        cv2.imwrite(os.path.join("Testing", "sampleData","outputLite.jpg"), result)
+
+    def testTfliteDection2(self):
+        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('Traindata', 'model', 'FederatedTestModel')
+        output = os.path.join(modelDir, 'tflite')
+        #convertModel(modelDir, output)
+
+        detector = FaceDetection( output, 'tflite')
+        detector.prepareImage(image, 1)
+        detections = detector.detectFace()
+        result = drawBoxes(image, detections)
+        cv2.imwrite(os.path.join("Testing", "sampleData","outputLite2.jpg"), result)
 
 if __name__ == '__main__':
     unittest.main()
