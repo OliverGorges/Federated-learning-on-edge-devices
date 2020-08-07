@@ -130,7 +130,7 @@ def readCheckpointValues(path, trainable=True):
     variables = detection_model.trainable_variables
 
     for v in variables:
-        values[v.name] = v.numpy() #* randomModi
+        values[v.name] = np.float16(v.numpy()) #* randomModi
     """
     names = [weight.name for layer in model.layers for weight in layer.weights]
     weights = model.get_weights()

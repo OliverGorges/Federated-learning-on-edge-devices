@@ -59,8 +59,10 @@ class JsonConverter():
     labelDict = {}
     if labelmap is not None:
       with open(labelmap) as json_file:
-        lables = json.load(json_file)
-        for label in labels:
+        print(labelmap)
+        labels = json.load(json_file)
+        print(labels)
+        for label in labels['item']:
           labelDict[str(label['name'])] = int(label['id'])
           categories.append({
           "supercategory": label['supercategory'],
@@ -77,6 +79,7 @@ class JsonConverter():
 
     for i, fname in enumerate(annotationFiles):
       with open(os.path.join(annotationDir, fname)) as json_file:
+        print(os.path.join(annotationDir, fname))
         anno = json.load(json_file)
         imageHeight = 480
         imageWidth = 640
@@ -125,7 +128,7 @@ class JsonConverter():
 
     # Write Tensorflow Labelmap
     with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'a') as the_file:
-        for c in categories
+        for c in categories:
           the_file.write('item\n')
           the_file.write('{\n')
           the_file.write('id :{}'.format(int(c['id'])))
@@ -244,7 +247,7 @@ class XmlConverter():
       
     # Write Tensorflow Labelmap
     with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'a') as the_file:
-        for c in categories
+        for c in categories:
           the_file.write('item\n')
           the_file.write('{\n')
           the_file.write('id :{}'.format(int(c['id'])))

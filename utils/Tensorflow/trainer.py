@@ -174,7 +174,7 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
         checkpointDir = os.path.join(modelDir, "checkpoint")
         for f in os.listdir(checkpointDir):
             if f.endswith(".index"):
-                checkpoint_prefix = os.path.join(checkpointDir, f)[:-6]
+                checkpoint_prefix =  f[:-6]
         config["checkpoint"] = str(pathlib.Path(os.path.join(checkpointDir, checkpoint_prefix)).absolute())
     else:
         config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
