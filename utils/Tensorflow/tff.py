@@ -9,10 +9,12 @@ import numpy as np
 import random 
 import time
 from shutil import copyfile
-
+import json
 from object_detection.utils import config_util
 from object_detection.builders import model_builder
 
+#Send Data
+import socket
 
 from utils.Tensorflow.tfliteConverter import convertModel
 
@@ -112,7 +114,7 @@ def readCheckpointValues(path, trainable=True):
     trainable: load just trainable variables, Default: True
     """
     tf.keras.backend.clear_session()
-    pipline = path[0]
+    pipeline = path[0]
     checkpoint = path[1]
     id = path[2]
     values = {}
@@ -128,9 +130,22 @@ def readCheckpointValues(path, trainable=True):
     y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([320, 320, 3], ndmin=2))
 
     variables = detection_model.trainable_variables
-
+    # Dump 16Bit Json
     for v in variables:
-        values[v.name] = np.float16(v.numpy()) #* randomModi
+        values[v.name] = np.float16(v.numpy()).tolist() #* randomModi
+    
+    data = json.dumps(values)
+    with open('data16.json', 'w') as outfile:
+        json.dump(data, outfile)
+
+    # Dump 32Bit Json
+    for v in variables:
+        values[v.name] = v.numpy().tolist() #* randomModi
+    
+    data = json.dumps(values)
+    with open('data32.json', 'w') as outfile:
+        json.dump(data, outfile)
+    
     """
     names = [weight.name for layer in model.layers for weight in layer.weights]
     weights = model.get_weights()
@@ -148,14 +163,21 @@ def readCheckpointValues(path, trainable=True):
     return values
 
 
-def sendData(path, dest, endpoint, trainable=True):
+def sendData(path, host, port, trainable=True):
     """
     Sends raw checkpoint data to another device/server
     """
+    readCheckpointValues(path, trainable=trainable)
+
+    #Init Socket
+    socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+
     pass
 
 if __name__ == "__main__":
-    
+    readCheckpointValues(("Traindata\\output\\test002\\custom_pipeline.config","Traindata\\output\\test002\\ckpt-3", 1))
+    exit()
     model_id = "FederatedTestModel"
     modelDir = os.path.join("Traindata", "model", model_id)
     pipeline = os.path.join(modelDir, "custom_pipeline.config")

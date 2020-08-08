@@ -1,5 +1,5 @@
 
-from utils.Tensorflow.trainer import trainer,  augmentData, prepareTFrecord
+from utils.Tensorflow.trainer import train, train_eval, augmentData, prepareTFrecord
 import os
 from shutil import copy
 import boto3
@@ -17,7 +17,7 @@ imgDir = os.path.join("Dataset", case, data)
 annoDir = os.path.join("Dataset", case, "Annotations")
 outDir = os.path.join("TrainData", "output", task)
 dataDir = os.path.join("TrainData","data")
-split = 5
+split = 1
 save = False
 
 #Find Labelmap
@@ -46,7 +46,7 @@ else:
             os.mkdir(result)
     tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.7)
 
-    trainer(result, dataDir, tfRecordsConfig=tfrecordConfig, model= "graphmod", steps=10)
+    train_eval(result, dataDir, tfRecordsConfig=tfrecordConfig, model= "tf2_mobilenet", steps=1000, eval_every_n_steps=200)
         
 if save:
     # Upload Results to S3

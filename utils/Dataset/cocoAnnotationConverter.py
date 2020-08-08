@@ -59,8 +59,8 @@ class JsonConverter():
     labelDict = {}
     if labelmap is not None:
       with open(labelmap) as json_file:
-        lables = json.load(json_file)
-        for label in labels:
+        labels = json.load(json_file)
+        for label in labels['item']:
           labelDict[str(label['name'])] = int(label['id'])
           categories.append({
           "supercategory": label['supercategory'],
@@ -68,11 +68,11 @@ class JsonConverter():
           "id":  int(label['id'])
       })
     else:
-      labelDict["Face"] = 0
+      labelDict["Face"] = 1
       categories.append({
           "supercategory": "none",
-          "name": "face",
-          "id": 0
+          "name": "Face",
+          "id": 1
         })
 
     for i, fname in enumerate(annotationFiles):
@@ -122,6 +122,17 @@ class JsonConverter():
     output = os.path.join(outputPath, f'coco{tag}{datetime.now().strftime("%d%m%Y")}.json')
     with open(output, 'w') as outfile:
         json.dump(coco, outfile)
+
+    # Write Tensorflow Labelmap
+    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'a') as the_file:
+        for c in categories:
+          the_file.write('item\n')
+          the_file.write('{\n')
+          the_file.write('id :{}'.format(int(c['id'])))
+          the_file.write('\n')
+          the_file.write("name :'{0}'".format(str(c['name'])))
+          the_file.write('\n')
+          the_file.write('}\n')
 
     return output, len(categories)
 
@@ -182,11 +193,11 @@ class XmlConverter():
         "id":  int(label.find('id').text)
       })
     else:
-      labels["face"] = 0
+      labels["Face"] = 1
       categories.append({
           "supercategory": "none",
-          "name": "face",
-          "id": 0
+          "name": "Face",
+          "id": 1
         })
 
     # Read all files from the subset
@@ -231,6 +242,17 @@ class XmlConverter():
     with open(output, 'w') as outfile:
         json.dump(coco, outfile)
 
+    # Write Tensorflow Labelmap
+    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'a') as the_file:
+        for c in categories:
+          the_file.write('item\n')
+          the_file.write('{\n')
+          the_file.write('id :{}'.format(int(c['id'])))
+          the_file.write('\n')
+          the_file.write("name :'{0}'".format(str(c['name'])))
+          the_file.write('\n')
+          the_file.write('}\n')
+          
     return output, len(categories)
 
 

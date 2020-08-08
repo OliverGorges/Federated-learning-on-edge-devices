@@ -18,18 +18,21 @@ TF 2.2.0 / Objectdtection 2.0 Tests
 
 class TestObjectDetection(unittest.TestCase):
 
-    def xtestMaskDetectionFaceDetectionAll(self):
+    def testMaskDetectionFaceDetectionAll(self):
         
-        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
-        modelDir = os.path.join('maskdetect', 'saved_model')
-        detector = FaceDetection(modelDir, "savedmodel")
+        image = cv2.imread(os.path.join("Testing", "sampleData", "ThermalFacedetect_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('Traindata', 'model', 'ThermalModel40k')
+        detector = FaceDetection(modelDir, "keras")
         detector.prepareImage(image, 1)
+
+        t1 = time.time()
         detections = detector.detectFace()
-        print(detections)
-    
+        predTime = time.time() - t1
+        logging.warning(f'### Model: {modelDir}, Predictions: {detections["num_detections"]}, Time: {predTime}')
+
+
         result = drawBoxes(image, detections)
         cv2.imwrite(os.path.join("Testing", "sampleData","output1.jpg"), result)
-        #self.assertEqual(2, 2)
     
     def xtestMaskDetectionFaceDetectionAll1(self):
         
@@ -74,7 +77,7 @@ class TestObjectDetection(unittest.TestCase):
         with tf.io.gfile.GFile(os.path.join(modelDir, "tflite", "model.tflite"), 'wb') as f:
             f.write(tflite_model)
 
-    def testTfliteDection(self):
+    def xtestTfliteDection(self):
         image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
         modelDir = os.path.join('Traindata', 'model', 'graphmod')
         output = os.path.join(modelDir, 'tflite')
@@ -87,14 +90,18 @@ class TestObjectDetection(unittest.TestCase):
         cv2.imwrite(os.path.join("Testing", "sampleData","outputLite.jpg"), result)
 
     def testTfliteDection2(self):
-        image = cv2.imread(os.path.join("Testing", "sampleData", "faceDetection_norm_2.jpg"), cv2.IMREAD_COLOR)
-        modelDir = os.path.join('Traindata', 'model', 'FederatedTestModel')
+        image = cv2.imread(os.path.join("Testing", "sampleData", "ThermalFacedetect_2.jpg"), cv2.IMREAD_COLOR)
+        modelDir = os.path.join('Traindata', 'model', 'ThermalModel40k')
         output = os.path.join(modelDir, 'tflite')
         #convertModel(modelDir, output)
 
         detector = FaceDetection( output, 'tflite')
         detector.prepareImage(image, 1)
+        t1 = time.time()
         detections = detector.detectFace()
+        predTime = time.time() - t1
+        logging.warning(f'### Model: {output}, Predictions: {detections["num_detections"]}, Time: {predTime}')
+
         result = drawBoxes(image, detections)
         cv2.imwrite(os.path.join("Testing", "sampleData","outputLite2.jpg"), result)
 

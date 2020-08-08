@@ -15,13 +15,15 @@ from google.protobuf import text_format
 from object_detection.utils import ops as utils_ops
 from object_detection.utils import label_map_util
 from object_detection.utils import visualization_utils as vis_util
+from object_detection.utils import config_util
+from object_detection.builders import model_builder
 from utils.Tensorflow.trainer import exportFrozenGraph
-
+from utils.Tensorflow.kerasdummy import Model
 
 class FaceDetection():
 
     
-    def __init__(self, model="ssd_mobilenet_v2_coco_2018_03_29", modelType="savedmodel"):
+    def __init__(self, model="ssd_mobilenet_v2_coco_2018_03_29", modelType="keras"):
         """
         model: model that should be Preloaded
         modelType: supported types: tflite, savedmodel, graph
@@ -48,8 +50,22 @@ class FaceDetection():
 
         elif self.modelType == "savedmodel":
             self.model = tf.saved_model.load(modelDir)
-        elif self.modelType == "graph":
-            pass
+        elif self.modelType == "keras":
+            tf.keras.backend.clear_session()
+            checkpointFile = tf.train.latest_checkpoint(os.path.join(modelDir, "checkpoint"))
+
+            for f in os.listdir(modelDir):
+                if f.endswith(".config"):
+                    pipeline = os.path.join(modelDir, f)
+
+            configs = config_util.get_configs_from_pipeline_file(pipeline)
+            detectionModel = model_builder.build(configs['model'], is_training=False)
+
+            model = detectionModel # Add Pre and Post Processing to model
+            checkpoint = tf.train.Checkpoint(model=model)
+            checkpoint.restore( checkpointFile).expect_partial()
+            logging.info(f'Checkpoint restored: {checkpointFile}')
+            self.model = model
 
             
     # Convert OpenCV image for the use with Tensorflow
@@ -76,8 +92,8 @@ class FaceDetection():
             pass
         elif self.modelType == "savedmodel":
             self.detections = self.run_inference_on_saved_model(self.model, image)
-        elif self.modelType == "graph":
-            self.detections = self.run_inference_on_graph(self.model, image)
+        elif self.modelType == "keras":
+            self.detections = self.run_inference_on_keras(self.model, image)
         return self.detections
 
     # Normale Boxes for annoationfiles
@@ -101,53 +117,34 @@ class FaceDetection():
             )
         return normFaces
 
-    def run_inference_on_graph(self, graph, image):
-        image = cv2.resize(image, (300,300))
-        with graph.as_default():
-            with tf.Session() as sess:
-                logging.info("Prepare Model")
-                # Get handles to input and output tensors
-                ops = tf.get_default_graph().get_operations()
-                all_tensor_names = {output.name for op in ops for output in op.outputs}
-                tensor_dict = {}
-                for key in [
-                    'num_detections', 'detection_boxes', 'detection_scores',
-                    'detection_classes', 'detection_masks'
-                ]:
-                    tensor_name = key + ':0'
-                    if tensor_name in all_tensor_names:
-                        tensor_dict[key] = tf.get_default_graph().get_tensor_by_name(
-                            tensor_name)
-                if 'detection_masks' in tensor_dict:
-                    # The following processing is only for single image
-                    detection_boxes = tf.squeeze(tensor_dict['detection_boxes'], [0])
-                    detection_masks = tf.squeeze(tensor_dict['detection_masks'], [0])
-                    # Reframe is required to translate mask from box coordinates to image coordinates and fit the image size.
-                    real_num_detection = tf.cast(tensor_dict['num_detections'][0], tf.int32)
-                    detection_boxes = tf.slice(detection_boxes, [0, 0], [real_num_detection, -1])
-                    detection_masks = tf.slice(detection_masks, [0, 0, 0], [real_num_detection, -1, -1])
-                    detection_masks_reframed = utils_ops.reframe_box_masks_to_image_masks(
-                        detection_masks, detection_boxes, image.shape[0], image.shape[1])
-                    detection_masks_reframed = tf.cast(
-                        tf.greater(detection_masks_reframed, 0.5), tf.uint8)
-                    # Follow the convention by adding back the batch dimension
-                    tensor_dict['detection_masks'] = tf.expand_dims(
-                        detection_masks_reframed, 0)
-               
-                image_tensor = tf.get_default_graph().get_tensor_by_name('image_tensor:0')
+    def run_inference_on_keras(self, graph, image):
+        image = np.expand_dims(cv2.resize(image, (320,320)), axis=0)
+        logging.info("Run inference")
 
-                logging.info("Run inference")
-                output_dict = sess.run(tensor_dict,
-                                        feed_dict={image_tensor: np.expand_dims(image, 0)})
-                
-                # all outputs are float32 numpy arrays, so convert types as appropriate
-                output_dict['num_detections'] = int(output_dict['num_detections'][0])
-                output_dict['detection_classes'] = output_dict[
-                    'detection_classes'][0].astype(np.uint8)
-                output_dict['detection_boxes'] = output_dict['detection_boxes'][0]
-                output_dict['detection_scores'] = output_dict['detection_scores'][0]
-                if 'detection_masks' in output_dict:
-                    output_dict['detection_masks'] = output_dict['detection_masks'][0]
+        image, shapes = self.model.preprocess(tf.convert_to_tensor(image, dtype=tf.float32))
+        prediction_dict = self.model.predict(image, shapes)
+        results = self.model.postprocess(prediction_dict, shapes)
+        #output_dict = self.model.call(image)#self.model.predict(tf.convert_to_tensor(image, dtype=tf.float32), np.array([1, 320, 320, 3], ndmin=2))
+
+        detection_boxes =  np.squeeze(results['detection_boxes'], axis=0) 
+        multiclass_scores = np.squeeze(results['detection_multiclass_scores'], axis=0) 
+        classes = []
+        scores =  []
+        num_detection = 0
+        output_dict = {}
+
+
+        for i in range(len(multiclass_scores)):
+            score = multiclass_scores[i]
+            scores.append(np.amax(score))
+            classes.append(np.where(score == np.amax(score))[0][0])
+            if np.amax(score) > 0.5:
+                num_detection += 1
+        # get output tensor
+        output_dict['detection_boxes'] = detection_boxes
+        output_dict['detection_classes'] = classes
+        output_dict['detection_scores'] = scores
+        output_dict['num_detections'] =  num_detection
                
         return output_dict
 
@@ -170,7 +167,7 @@ class FaceDetection():
         output_dict['detection_classes'] =  output_dict['detection_classes'].astype(np.int64)
         
         output_dict['detection_scores'] =  output_dict['detection_scores'].astype(np.float64)
-        print(output_dict['detection_scores'])
+       
         # Handle models with masks:
         if 'detection_masks' in output_dict:
             # Reframe the the bbox mask to the image size.
@@ -186,15 +183,10 @@ class FaceDetection():
 
     def run_inference_on_tflite(self, img):
 
-        logging.info("###############")
-        logging.info(self.input_details)
-        logging.info(self.output_details)
-
         img_org = img.copy()
 
         #prepare Image
         shape = self.input_details[0]['shape']
-        print(shape)
         img = cv2.resize(img, (shape[1], shape[2]))
         img = img.reshape(1, img.shape[0], img.shape[1], img.shape[2]) # (1, 300, 300, 3)
         img = img.astype(np.float32)
@@ -209,35 +201,35 @@ class FaceDetection():
         output_dict = {}
 
         # Foramts results
-        #num_detections = int(self.interpreter.get_tensor(self.output_details[3]['index']))
-        results = np.squeeze(self.interpreter.get_tensor(self.output_details[0]['index']), axis=0)
-        
-        detection_boxes =  [i[:4] for i in results]
-        classes = [i[4] for i in results]
-        scores =  [i[5] for i in results]
-        #classes = np.squeeze(self.interpreter.get_tensor(self.output_details[1]['index']), axis=0)
-        #scores = np.squeeze(self.interpreter.get_tensor(self.output_details[2]['index']), axis=0)
-        #logging.debug(detection_boxes)
-        #logging.debug(scores)
-        #logging.debug(classes)
-        # Sorts out low score boxes
-        detections = len(scores)
-        real_boxes = np.zeros((detections, 4))
-        real_classes = np.zeros((detections))
-        real_scores = np.zeros((detections))
-        real_num_detection = 0
-        for i in range(detections):
-            if scores[i] > 0.0:
-                real_boxes[real_num_detection] = np.absolute(detection_boxes[i])
-                real_scores[real_num_detection] = scores[i]
-                real_classes[real_num_detection] = classes[i]
-                real_num_detection += 1 
+        # 0 = detection anchor indeces ?
+        # 1 = boxes
+        # 2 = broken_classes
+        # 3 = multiclass detection score
+        # 4 = scores
+        # 5 = num of detections
+        # 6 = raw detection boxes
+        # 7 = raw multiclass detection score
 
+        detection_boxes = np.squeeze(self.interpreter.get_tensor(self.output_details[1]['index']), axis=0) 
+        multiclass_scores = np.squeeze(self.interpreter.get_tensor(self.output_details[3]['index']), axis=0) 
+        classes = []
+        scores =  []
+        num_detection = 0
+        output_dict = {}
+
+
+        for i in range(len(multiclass_scores)):
+            score = multiclass_scores[i]
+            scores.append(np.amax(score))
+            classes.append(np.where(score == np.amax(score))[0][0])
+            if np.amax(score) > 0.5:
+                num_detection += 1
         # get output tensor
-        output_dict['detection_boxes'] = real_boxes
-        output_dict['detection_classes'] = real_classes
-        output_dict['detection_scores'] = real_scores
-        output_dict['num_detections'] =  real_num_detection#int(self.interpreter.get_tensor(self.output_details[3]['index']))
-
+        output_dict['detection_boxes'] = detection_boxes
+        output_dict['detection_classes'] = classes
+        output_dict['detection_scores'] = scores
+        output_dict['num_detections'] =  num_detection
+               
         return output_dict
+
 
