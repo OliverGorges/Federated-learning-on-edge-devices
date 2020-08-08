@@ -58,19 +58,10 @@ def thermalImageThread():
     t1 = time.time()
     #get Data
     image_data = tc.getTemperatureImage()
-    #logging.debug(type(image_data))
     #get Image
     thermalImg = dataToImage(image_data, outputSize)
     logging.debug(f"Runtime ThermalThread: {time.time() - t1}")
     return thermalImg, image_data
-
-def imageThread(frame):
-    t1 = time.time()
-    #Detect Faces
-    t2 = time.time()
-    
-    logging.debug(f"Runtime ImageThread:  {time.time() - t1} / Image {t2 - t1} / Prediction {time.time() - t2}")
-    return frame
 
 
 def detectionThread(queue, inputDict, detector):
@@ -98,13 +89,13 @@ with ThreadPoolExecutor(max_workers=8) as executor:
         # Crop image from PiCam2
         liveFrame, size = c.cropImage(liveFrame)
 
-        # Starts Thread that gets the Images from the Thermal Camera and Predicts Faces on normal Image
+        # Run ThermalImage Thread and first Detection Thread Parallel
         if detectionThread1 is None and thermalThread is None:
             thermalThread = executor.submit(thermalImageThread)
             detectionThread1 = multiprocessing.Process(target=detectionThread, args=(q, {"Image": liveFrame, "Size": size, "Scale": 1, "Thermal": False}, faceDetection1))
             detectionThread1.start()
         
-        # When the Thermalimage is taken, gives the result from the ThermalThread to a DetectionTread
+        # Start Secound DatectionThread then ThermalImage thread is done
         if thermalThread is not None:
             if thermalThread.done():
                 if  detectionThread2 is None:
@@ -115,7 +106,7 @@ with ThreadPoolExecutor(max_workers=8) as executor:
                     detectionThread2.start()
                     thermalThread = None
 
-        
+        # Wait til both detection Threads have reulsts and combine the results
         if detectionThread1 is not None and detectionThread2 is not None:
             #detectionThread1.join(1)
             #detectionThread2.join(1)
@@ -138,7 +129,7 @@ with ThreadPoolExecutor(max_workers=8) as executor:
                 #print("Still Alive ")
           
         c1 += 1
-
+        # Display Images with detection results
         if "PICam" in frameDict:
             # Prepare OpenCV Image
             print(f'Norm: {frameDict["PICam"]["Image"].shape}')
@@ -147,11 +138,12 @@ with ThreadPoolExecutor(max_workers=8) as executor:
             frame = cv2.resize(frameDict["PICam"]["Image"], outputSize , interpolation = cv2.INTER_AREA)
             
             prevFrame = frame.copy()
+
             # Draw a rectangle around the faces
             prevFrame = drawBoxes(prevFrame, frameDict["PICam"]["Faces"])
-
-            
             prevFrame = drawBoxes(prevFrame, frameDict["ThermalCam"]["Faces"], (0,0,255))
+            
+            # Merge both images
             alpha = 0.6
             print(f'Norm2: {prevFrame.shape}')
             prevFrame = cv2.addWeighted(prevFrame, alpha, frameDict["ThermalCam"]["Image"], 1-alpha, 0.0)

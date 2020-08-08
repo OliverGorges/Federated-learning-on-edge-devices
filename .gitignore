@@ -1,6 +1,8 @@
 /Dataset/
+/Dataset2/
 /Traindata/
 *.pyc
 *.pyo
 .vscode
 tfmodels/
+aws/

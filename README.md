@@ -2,14 +2,25 @@
 Repository for my Bachelor thesis that demonstrates the concept of federated machine learning on edge devices
 
 
-Try Tensorflow 2.2 implementaion on raspberry Pi
 
 
 # Installation
+
+pip install -r requirements.txt 
 
 ## Tensorflow 1.15
 
 ## OpenCV
 > pip install opencv-python
 > pip install opencv-contrib-python==4.1.0.25
+
+# Hardware
+- Raspberry Pi 4 (4GB) + Poweradapter
+- 64GB SD Card
+- Cooling Case + Fan
+- Raspberry Cam2
+- Thinkerforge ThermalCamera
+- Thinkerforge PiHead
+
+
 
