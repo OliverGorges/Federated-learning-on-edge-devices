@@ -124,7 +124,7 @@ class JsonConverter():
         json.dump(coco, outfile)
 
     # Write Tensorflow Labelmap
-    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'a') as the_file:
+    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'w') as the_file:
         for c in categories:
           the_file.write('item\n')
           the_file.write('{\n')
@@ -178,7 +178,7 @@ class XmlConverter():
     categories = []
     
     
-    nrOfAnnotations = 0
+    nrOfAnnotations = 130
     labelDict = {}
 
     # Write Labelmap in Annoation file and creat dict for labelmapping
@@ -199,7 +199,7 @@ class XmlConverter():
           "name": "Face",
           "id": 1
         })
-
+    print(categories)
     # Read all files from the subset
     for i, fname in enumerate(annotationFiles):
       
@@ -209,7 +209,7 @@ class XmlConverter():
         "file_name": str(pathlib.Path(os.path.join(imageDir, anno.find("filename").text)).absolute()),
         "height": int(anno.find('size').find('height').text),
         "width": int(anno.find('size').find('width').text),
-        "id": i
+        "id": i + 130
       })
       # Adds Objects
       for detection in anno.findall('object'):
@@ -219,7 +219,7 @@ class XmlConverter():
         box = [int(box.find("xmin").text), int(box.find("ymin").text), int(box.find("xmax").text)-int(box.find("xmin").text) , int(box.find("ymax").text)-int(box.find("ymin").text)]
         obj["bbox"] = box
         obj["area"] = box[2] * box[3]
-        obj["image_id"] = i
+        obj["image_id"] = i  + 130
         obj["iscrowd"] = 1 if len(anno.findall('object')) > 1 else 0
         obj["category_id"] = labelDict[detection.find('name').text]
         annotations.append(obj)
@@ -243,7 +243,7 @@ class XmlConverter():
         json.dump(coco, outfile)
 
     # Write Tensorflow Labelmap
-    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'a') as the_file:
+    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'w') as the_file:
         for c in categories:
           the_file.write('item\n')
           the_file.write('{\n')
@@ -252,7 +252,7 @@ class XmlConverter():
           the_file.write("name :'{0}'".format(str(c['name'])))
           the_file.write('\n')
           the_file.write('}\n')
-          
+
     return output, len(categories)
 
 

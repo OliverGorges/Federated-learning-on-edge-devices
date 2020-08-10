@@ -12,9 +12,9 @@ import logging
 
 
 task = "test002"
-case = "ThermalFaceDetection"
-annoformat = "JSON"
-data = "ThermalImages"
+case = "MaskDetection"
+annoformat = "XML"
+data = "Images"
 
 imgDir = os.path.join("Dataset", case, data)
 annoDir = os.path.join("Dataset", case, "Annotations")
