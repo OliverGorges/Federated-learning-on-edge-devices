@@ -9,7 +9,10 @@ from object_detection import model_lib_v2
 import time
 import logging 
 import cv2
+import boto3
 import numpy as np
+import json
+import xml.etree.ElementTree as ET
 from object_detection import model_hparams
 from object_detection import model_lib
 from google.protobuf import text_format
@@ -32,7 +35,7 @@ def splitList(data, i):
     result[i-1] = numpy.concatenate((result[i-1], rest))
     logging.debug([len(s) for s in result])
     return result
-
+    
 
 def augmentData(imageDir, annotationDir, outputDir, split=1):
     
@@ -166,11 +169,12 @@ def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet
             checkpoint = os.path.join(modelOutput, f)[:-6]
 
     if checkpoint is None:
-        finetune_checkpoint = ""
-        for f in os.listdir(os.path.join(modelDir, "checkpoint")):
+        checkpoint_prefix = "ckpt-1"
+        checkpointDir = os.path.join(modelDir, "checkpoint")
+        for f in os.listdir(checkpointDir):
             if f.endswith(".index"):
-               finetune_checkpoint = f[:-6]
-        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", finetune_checkpoint)).absolute())
+                checkpoint_prefix = f[:-6]
+        config["checkpoint"] = str(pathlib.Path(os.path.join(checkpointDir, checkpoint_prefix)).absolute())
     else:
         config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
 

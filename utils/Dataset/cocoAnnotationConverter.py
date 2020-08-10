@@ -241,6 +241,17 @@ class XmlConverter():
     output = os.path.join(outputPath, f'coco{tag}{datetime.now().strftime("%d%m%Y")}.json')
     with open(output, 'w') as outfile:
         json.dump(coco, outfile)
+      
+    # Write Tensorflow Labelmap
+    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'a') as the_file:
+        for c in categories
+          the_file.write('item\n')
+          the_file.write('{\n')
+          the_file.write('id :{}'.format(int(c['id'])))
+          the_file.write('\n')
+          the_file.write("name :'{0}'".format(str(c['name'])))
+          the_file.write('\n')
+          the_file.write('}\n')
 
     # Write Tensorflow Labelmap
     with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'w') as the_file:
