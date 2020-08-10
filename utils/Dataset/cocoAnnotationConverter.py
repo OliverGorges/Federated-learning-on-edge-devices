@@ -254,17 +254,6 @@ class XmlConverter():
           the_file.write('\n')
           the_file.write('}\n')
 
-    # Write Tensorflow Labelmap
-    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'w') as the_file:
-        for c in categories:
-          the_file.write('item\n')
-          the_file.write('{\n')
-          the_file.write('id :{}'.format(int(c['id'])))
-          the_file.write('\n')
-          the_file.write("name :'{0}'".format(str(c['name'])))
-          the_file.write('\n')
-          the_file.write('}\n')
-
     return output, len(categories)
 
 
