@@ -5,3 +5,8 @@
 .vscode
 tfmodels/
 aws/
+tf2/
+tasks/
+checkpoints/
+models/
+.DS_Store

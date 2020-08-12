@@ -1,3 +1,6 @@
 *.pptx
 Diagrams/
-ProjectImages/s
+ProjectImages/
+tf2/
+tasks/
+checkpoints/

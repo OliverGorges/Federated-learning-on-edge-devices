@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, send_file
 import time
 import random
+import json
 from utils.Tensorflow import tff
 from flask_swagger import swagger
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -8,14 +9,17 @@ from utils.Tensorflow.tff import aggregateVariables
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import logging
+import os
 from uuid import uuid4
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
-client = MongoClient('localhost', 27017)
-db = client.federated_learning
+#client = MongoClient('localhost', 27017)
+#db = client.federated_learning
+
 
 data = {}
 
@@ -28,7 +32,7 @@ swaggerui_blueprint = get_swaggerui_blueprint(
     },
 )
 
-timeout = 600
+timeout = 6000
 taskId = 0
 nextTime = 0
 clients = []
@@ -39,6 +43,11 @@ completedTasks = 0
 @app.route('/')
 def index():
     return send_file("index.html", mimetype='text/html')
+
+
+@app.route('/data')
+def dataset():
+    return jsonify({ "filename": "Subset3.zip" }), 202
 
 # Federaded Process
 
@@ -130,10 +139,13 @@ def getTask(client_id):
         if client_id in clients:
             clients.remove(client_id)
             validKeys.append(client_id)
-            plan = db.plans.find_one({"_id": ObjectId(str(taskId))})
+            #plan = db.plans.find_one({"_id": ObjectId(str(taskId))})
+            plan = json.load(open(os.path.join("tasks", f"{taskId}.json")))
             if plan is None:
                 logging.info(f"cant find Task {taskId}")
                 return "cant find Task", 404
+            #Create folder for client results
+            os.makedirs(os.path.join("checkpoints", plan['Task'], str(client_id)))
             return jsonify({ "Accepted": True, "Key": client_id, "Task": plan['Task'], "Data": plan['Data'], "Case": plan['Case'], "ModelVersion": plan['ModelVersion'] }), 200
 
     return jsonify({ "Accepted": False }), 410
@@ -199,16 +211,66 @@ def results(id):
     global validKeys
 
     if nextTime <= time.time() <= nextTime+timeout:
-        if id in validKeys:
+        if id in validKeys :
             validKeys.remove(id)
-            trainresult1 = request.json
-            trainresult2 = request.data
-            print(f'Data: {trainresult2}, JSON: {trainresult1}')
-            data[id] = trainresult1
-            completedTasks += 1
-            return 200
+            # check if the post request has the file part
+            if not 'file' in request.files:
+                return "", 404
+            file = request.files['file']
+            # if user does not select file, browser also
+            # submit an empty part without filename
+            if file.filename == '':
+                flash('No selected file')
+                return "", 404
+            plan = json.load(open(os.path.join("tasks", f"{taskId}.json")))
+            if plan is None:
+                logging.info(f"cant find Task {taskId}")
+                return "cant find Task", 404
+            if file:
+                try:
+                    zipFile = os.path.join("checkpoints", plan['Task'], str(id), 'results.zip')
+                    file.save(zipFile)
+                    with zipfile.ZipFile(zipFile, 'r') as zip_ref:
+                        zip_ref.extractall()
+                    os.remove(zipFile)
+                    return "", 200
+                except:
+                    return "", 500
+
+        return "", 400
     else:
-        return 410
+        return "", 410
+
+@app.route('/meta/<int:id>', methods=['POST'])
+def meta(id):
+    """
+    Result Upload
+    ---
+    tags:
+        - reporting
+        - FederatedProcess
+    summary: Endpoint to upload Trainingresults
+    consumes:
+    - application/json
+    produces:
+    - application/json
+    parameters:
+          - in: body
+            name: body
+            description: dictionary with all trainable parameters
+            required: true
+    responses:
+        200:
+            description: Input Accepted
+        410:
+            description: Invalid input
+    """
+    trainresult = request.json
+    print(f'JSON: {trainresult}')
+    with open(os.path.join("checkpoints", plan['Task'], str(id), f"meta.json"), 'w') as json_file:
+            json.dump(trainresult, json_file)
+    return "", 200
+
 
 # Internal endpoints
 
@@ -242,16 +304,27 @@ def uploadPlan():
         for key in keys:
             if not key in plan:
                 return f"Plan must incluse the key: {key}", 410
-        utime = int(plan['Time'])
+        utime = int(plan['Time'])/1000
         if utime  < time.time():
             logging.info("Timeerror")
             #return "Time not valid", 410
             utime = time.time()+20
 
-        dbId = db.plans.insert_one(plan).inserted_id
-        taskId = dbId
+
+        #dbId = db.plans.insert_one(plan).inserted_id
+        taskId = uuid4()
+        output = os.path.join("checkpoints", plan['Task'])
+        if os.path.exists(output):
+            shutil.rmtree(output)
+        os.makedirs(output)
+
+        with open(os.path.join(output, f"definition.json"), 'w') as json_file:
+            json.dump(plan, json_file)
+
+        with open(os.path.join("tasks", f"{taskId}.json"), 'w') as json_file:
+            json.dump(plan, json_file)
         nextTime = utime
-        return f"Plan saved with the id {dbId}", 200
+        return f"Plan saved with the id {taskId}", 200
     else:
         # Update/Rerun Plan
         if not "ID" in plan:
@@ -264,14 +337,16 @@ def uploadPlan():
             #return "Time not valid", 410
             utime = time.time()+120
 
-        oldPlan = db.plans.find_one({"_id": ObjectId(str(plan['ID']))})
+        oldPlan = json.load(open(os.path.join("tasks", f"{taskId}.json")))
         oldPlan.pop("_id", None)
+
         for k in plan.keys():
             oldPlan[k] = plan[k]
-        dbId = db.plans.insert_one(plan).inserted_id
-        taskId = dbId
+        taskId = uuid4()
+        with open(os.path.join("tasks", f"{taskId}.json"), 'w') as json_file:
+            json.dump(plan, json_file)
         nextTime = plan['Time']
-        return f"Plan saved with the id {dbId}", 200
+        return f"Plan saved with the id {taskId}", 200
 
 
 
@@ -292,11 +367,35 @@ def aggregateResults():
         200:
             description: Input Accepted
     """
-    aggregatedData = aggregateVariables(data)
-    dbId = db.checkpoints.insert_one(aggregatedData).inserted_id
-    writeCheckpointValues(aggregatedData, model_dir, os.path.join("Traindata", "model", "federatedModel", f"modi_model{time.time()}.ckpt" ))
-    return f"Checkpoint saved {dbId}"
+    plan = json.load(open(os.path.join("tasks", f"{taskId}.json")))
+    taskDir = os.path.join("checkpoints", plan['Task'])
+    results = os.listdir(taskDir)
+    chkps = []
+    for i, result in enumerate(results):
+        c = tf.train.latest_checkpoint(result)
+        pipeline = os.path.join(result, 'pipeline.config')
+        chkps.append(readCheckpointValues((pipeline, c , i)))
 
+    t3 = time.time()
+    logging.info(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}')
+    aggregatedData = aggregateVariables(chkps)
+    t4 = time.time()
+    logging.info(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}')
+
+    output = os.path.join( "models", f"{plan['ModelVersion']}_{time.time()}" )
+    plan['newModel'] = output
+    # update Plan
+    with open(os.path.join("tasks", f"{taskId}.json", "w") as jsonFile:
+        json.dump(plan, jsonFile)
+
+    writeCheckpointValues(aggregatedData, pipeline, output, checkpoint)
+    t5 = time.time()
+    logging.info(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}, Save Checkpoint: {t5-t4}')
+    return f"Checkpoint saved {checkpointId}"
+
+@app.route('/eval')
+def evalResults():
+    plan = json.load(open(os.path.join("tasks", f"{taskId}.json")))
 
 ## Info Endpoints
 @app.route('/status')

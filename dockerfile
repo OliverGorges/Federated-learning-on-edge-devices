@@ -8,5 +8,7 @@ RUN echo "$PWD"
 RUN protoc object_detection/protos/*.proto --python_out=.
 RUN pip install .
 WORKDIR /app
+RUN mkdir tasks
+RUN mkdir checkpoints
 RUN pip install -r requirements.txt
 CMD python /app/tffserver.py
