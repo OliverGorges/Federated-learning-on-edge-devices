@@ -170,13 +170,10 @@ def zipCheckpoint(srcDict, dst):
         zf.write(srcDict[filename], filename)
     zf.close()
 
-def sendData( host, port, endpoint, checkpointDir, pipeline, meta):
+def sendData( url, checkpointDir, pipeline, meta):
     """
     Sends raw checkpoint data to another device/server
     """
-    if endpoint.startswith('/'):
-        endpoint = endpoint[1:]
-
     files = {}
     files['pipeline.config'] = pipeline
     files['meta.json'] = meta
@@ -189,7 +186,7 @@ def sendData( host, port, endpoint, checkpointDir, pipeline, meta):
     zipCheckpoint(files, "temp.zip")
     fileobj = open('temp.zip', 'rb')
     print(fileobj)
-    r = requests.post(f'http://{host}:{port}/{endpoint}', data = {"mysubmit":"Go"}, files={"file": ("test.zip", fileobj)})
+    r = requests.post(url, data = {"mysubmit":"Go"}, files={"file": ("test.zip", fileobj)})
 
     pass
 

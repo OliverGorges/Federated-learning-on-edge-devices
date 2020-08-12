@@ -9,7 +9,7 @@ import time
 import logging 
 import requests
 import json
-from utils.Tensorflow.tff import readCheckpointValues
+from utils.Tensorflow.tff import sendData
 
 split = 0
 save = False
@@ -99,10 +99,6 @@ if not os.path.exists(result):
 tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.8)
 train_eval(result, dataDir, tfRecordsConfig=tfrecordConfig, model=task['ModelVersion'], steps=steps, eval_every_n_steps=200, _eval_callback=callback)
         
-checkpoint = [f for f in os.listdir(result) if f.endswith('.index')].pop()[:-6]
-logging.info(f'Latest Checkpoint: {checkpoint}')
+sendData(f'http://{host}/results/{client["id"]}', checkpointDir, pipeline, meta)
 
-
-valueDict = readCheckpointValues((os.path.join(result, 'custom_pipeline.config'), os.path.join(result, checkpoint), task["Key"]))
-result = requests.post(f'http://{ host }/results/{task["Key"]}', json=json.loads(json.dumps(valueDict, default=default)))
 print(result.text)
