@@ -1,1 +1,5 @@
 *.pptx
+Dataset/
+PreviewServer/
+Testing/
+Traindata/data/

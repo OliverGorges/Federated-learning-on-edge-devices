@@ -1,5 +1,5 @@
 
-from utils.Tensorflow.trainer import trainer,  augmentData, prepareTFrecord
+from utils.Tensorflow.trainer import train_eval,  augmentData, prepareTFrecord
 import os
 from shutil import copy
 import boto3
@@ -14,6 +14,16 @@ from utils.Tensorflow.tff import readCheckpointValues
 split = 0
 save = False
 host = "192.168.178.23:5000"
+
+def default(obj):
+    if type(obj).__module__ == numpy.__name__:
+        if isinstance(obj, numpy.ndarray):
+            return obj.tolist()
+        else:
+            return obj.item()
+    else:
+        return obj.as_list()
+    raise TypeError('Unknown type:', type(obj))
 
 # register Clients
 client = requests.get(f'http://{ host }/reg').json()
@@ -75,7 +85,7 @@ for f in files:
 if 'steps' in task:
     steps = task['steps']
 else:
-    steps = 200
+    steps = 1000
 
 augImages, augAnnotations = augmentData(imgDir, annoDir, dataDir, split)
 
@@ -83,7 +93,7 @@ result = os.path.join("Traindata", "output", taskname)
 if not os.path.exists(result):
         os.mkdir(result)
 tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.8)
-trainer(result, dataDir, tfRecordsConfig=tfrecordConfig, model=task['ModelVersion'], steps=steps)
+train_eval(result, dataDir, tfRecordsConfig=tfrecordConfig, model=task['ModelVersion'], steps=steps, eval_every_n_steps=200)
         
 checkpoint = [f for f in os.listdir(result) if f.endswith('.index')].pop()[:-6]
 logging.info(f'Latest Checkpoint: {checkpoint}')
