@@ -209,7 +209,7 @@ def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet
                 model_dir=modelOutput,
                 train_steps=train_steps,
                 checkpoint_every_n=eval_every_n_steps,
-                checkpoint_max_to_keep=2)
+                checkpoint_max_to_keep=1)
         
         logging.info(f"Trainsteps: {train_steps}")
         # Run Eval once and then let it timeout to containue with training

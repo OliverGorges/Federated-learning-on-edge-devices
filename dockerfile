@@ -1,5 +1,6 @@
 FROM tensorflow/tensorflow:2.2.0
 COPY . /app
+EXPOSE 6006
 
 ENV PYTHONPATH="/app:/app/tfmodels:/app/tfmodels/research:/app/tfmodels/official:/app/tfmodels/research/slim:${PYTHONPATH}"
 
@@ -11,6 +12,7 @@ RUN pip install .
 
 WORKDIR /app/Traindata
 RUN mkdir data
+RUN mkdir output
 WORKDIR /app/Traindata/data
 RUN mkdir images
 RUN mkdir annotations

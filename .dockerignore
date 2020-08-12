@@ -1,5 +1,5 @@
 *.pptx
-Dataset/
 PreviewServer/
 Testing/
 Traindata/data/
+Traindata/output/

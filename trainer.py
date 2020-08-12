@@ -32,15 +32,15 @@ if int(client['id']) == 0:
     exit()
 
 # load Data
-compData = os.path.join("Dataset2", "data.zip")
+compData = os.path.join("Dataset", "data.zip")
 result = requests.get(f'http://{ host }/data').json()
 print(result["filename"][:-4])
-print(os.listdir("Dataset2"))
-if not result["filename"][:-4] in os.listdir("Dataset2"):
+print(os.listdir("Dataset"))
+if not result["filename"][:-4] in os.listdir("Dataset"):
     s3 = boto3.client('s3')
     s3.download_file('federatedlearning-cg', f'data/{result["filename"]}', compData)
     with ZipFile(compData, 'r') as zipObj:
-        zipObj.extractall("Dataset2")
+        zipObj.extractall("Dataset")
 
     # remove compressed Data
     os.remove(compData) 
@@ -62,9 +62,9 @@ if not task['Accepted']:
 taskname = task['Task']
 outDir = os.path.join("Traindata", "output", taskname)
 data = task['Data']
-case = os.listdir("Dataset2")[0]
-imgDir = os.path.join("Dataset2", case, 'images')
-annoDir = os.path.join("Dataset2", case, "annotations")
+case = os.listdir("Dataset")[0]
+imgDir = os.path.join("Dataset", case, 'images')
+annoDir = os.path.join("Dataset", case, "annotations")
 # Check Annotation format
 if os.listdir(annoDir)[0].endswith('.json'):
     annoformat = "JSON"
@@ -76,10 +76,10 @@ dataDir = os.path.join("Traindata","data")
 
 #Find Labelmap
 labelmap = None
-files = os.listdir(os.path.join("Dataset2", case))
+files = os.listdir(os.path.join("Dataset", case))
 for f in files:
     if f.startswith("label_map"):
-        labelmap = os.path.join("Dataset2", case, f)
+        labelmap = os.path.join("Dataset", case, f)
         break
 
 if 'steps' in task:

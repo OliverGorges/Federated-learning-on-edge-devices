@@ -4,7 +4,21 @@ Repository for my Bachelor thesis that demonstrates the concept of federated mac
 ## Virtual CLient
 This Branch contains the code for the virtual client image that is used to simulate multiple Raspberry Pi's
 
+# Additional Folders
 
+- Traindata
+    - data
+        - images
+        - annotations
+    - models
+        - yourModels
+    - output
+
+- tfmodels #Pulled from https://github.com/tensorflow/models/tree/master/research/object_detection ()
+    - official
+    - research
+
+- Dataset
 
 # Installation
 
