@@ -385,17 +385,37 @@ def aggregateResults():
     output = os.path.join( "models", f"{plan['ModelVersion']}_{time.time()}" )
     plan['newModel'] = output
     # update Plan
-    with open(os.path.join("tasks", f"{taskId}.json", "w") as jsonFile:
+    with open(os.path.join("tasks", f"{taskId}.json", "w")) as jsonFile:
         json.dump(plan, jsonFile)
 
     writeCheckpointValues(aggregatedData, pipeline, output, checkpoint)
     t5 = time.time()
     logging.info(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}, Save Checkpoint: {t5-t4}')
-    return f"Checkpoint saved {checkpointId}"
+    return f"Checkpoint saved {checkpointId}", 200
+
 
 @app.route('/eval')
 def evalResults():
     plan = json.load(open(os.path.join("tasks", f"{taskId}.json")))
+    #Find Labelmap
+    data = plan['Data']
+    case = plan['Case']
+    model = plan['newModel']
+    testData = os.path.join('Testdata', case)
+    labelmap = None
+    files = os.listdir(testData)
+    for f in files:
+        if f.startswith("label_map"):
+            labelmap = os.path.join(testData f)
+            break
+    imgDir = os.path.join(testData, data)
+    annoDir = os.path.join(testData, 'annotations')
+    dataDir = os.path.join(testData, 'output')
+    augImages, augAnnotations = augmentData(imgDir, annoDir, dataDir, split)
+    tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.1)
+    eval(outDir, dataDir, tfRecordsConfig=tfrecordConfig, model= model, steps=1)
+
+
 ## Info Endpoints
 @app.route('/status')
 def getStatus():

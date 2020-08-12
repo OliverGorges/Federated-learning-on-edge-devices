@@ -11,3 +11,4 @@ tasks/
 checkpoints/
 models/
 .DS_Store
+TestData/
