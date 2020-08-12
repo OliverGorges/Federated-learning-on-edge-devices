@@ -63,7 +63,13 @@ def augmentData(imageDir, annotationDir, outputDir, split=1):
         return imageSubsets, annotationSubsets
     else: 
         imgOut = os.path.join(outputDir, "images")
+        if not os.path.exists(imgOut):
+            os.mkdir(os.path.join(folder, 'images'))
+            
         annoOut = os.path.join(outputDir, "annotations")
+        if not os.path.exists(annoOut):
+            os.mkdir(os.path.join(folder, 'annotations'))
+
         for img in sorted(os.listdir(imageDir)):
             copy(os.path.join(imageDir,img), imgOut)
         for anno in sorted(os.listdir(annotationDir)):
