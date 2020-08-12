@@ -59,8 +59,8 @@ class JsonConverter():
     labelDict = {}
     if labelmap is not None:
       with open(labelmap) as json_file:
-        lables = json.load(json_file)
-        for label in labels:
+        labels = json.load(json_file)
+        for label in labels['item']:
           labelDict[str(label['name'])] = int(label['id'])
           categories.append({
           "supercategory": label['supercategory'],
@@ -68,11 +68,11 @@ class JsonConverter():
           "id":  int(label['id'])
       })
     else:
-      labelDict["Face"] = 0
+      labelDict["Face"] = 1
       categories.append({
           "supercategory": "none",
-          "name": "face",
-          "id": 0
+          "name": "Face",
+          "id": 1
         })
 
     for i, fname in enumerate(annotationFiles):
@@ -123,6 +123,17 @@ class JsonConverter():
     with open(output, 'w') as outfile:
         json.dump(coco, outfile)
 
+    # Write Tensorflow Labelmap
+    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'w') as the_file:
+        for c in categories:
+          the_file.write('item\n')
+          the_file.write('{\n')
+          the_file.write('id :{}'.format(int(c['id'])))
+          the_file.write('\n')
+          the_file.write("name :'{0}'".format(str(c['name'])))
+          the_file.write('\n')
+          the_file.write('}\n')
+
     return output, len(categories)
 
 
@@ -167,7 +178,7 @@ class XmlConverter():
     categories = []
     
     
-    nrOfAnnotations = 0
+    nrOfAnnotations = 130
     labelDict = {}
 
     # Write Labelmap in Annoation file and creat dict for labelmapping
@@ -182,13 +193,13 @@ class XmlConverter():
         "id":  int(label.find('id').text)
       })
     else:
-      labels["face"] = 0
+      labels["Face"] = 1
       categories.append({
           "supercategory": "none",
-          "name": "face",
-          "id": 0
+          "name": "Face",
+          "id": 1
         })
-
+    print(categories)
     # Read all files from the subset
     for i, fname in enumerate(annotationFiles):
       
@@ -198,7 +209,7 @@ class XmlConverter():
         "file_name": str(pathlib.Path(os.path.join(imageDir, anno.find("filename").text)).absolute()),
         "height": int(anno.find('size').find('height').text),
         "width": int(anno.find('size').find('width').text),
-        "id": i
+        "id": i + 130
       })
       # Adds Objects
       for detection in anno.findall('object'):
@@ -208,7 +219,7 @@ class XmlConverter():
         box = [int(box.find("xmin").text), int(box.find("ymin").text), int(box.find("xmax").text)-int(box.find("xmin").text) , int(box.find("ymax").text)-int(box.find("ymin").text)]
         obj["bbox"] = box
         obj["area"] = box[2] * box[3]
-        obj["image_id"] = i
+        obj["image_id"] = i  + 130
         obj["iscrowd"] = 1 if len(anno.findall('object')) > 1 else 0
         obj["category_id"] = labelDict[detection.find('name').text]
         annotations.append(obj)
@@ -230,6 +241,17 @@ class XmlConverter():
     output = os.path.join(outputPath, f'coco{tag}{datetime.now().strftime("%d%m%Y")}.json')
     with open(output, 'w') as outfile:
         json.dump(coco, outfile)
+
+    # Write Tensorflow Labelmap
+    with open(os.path.join(outputPath, 'labelmap.pbtxt'), 'w') as the_file:
+        for c in categories:
+          the_file.write('item\n')
+          the_file.write('{\n')
+          the_file.write('id :{}'.format(int(c['id'])))
+          the_file.write('\n')
+          the_file.write("name :'{0}'".format(str(c['name'])))
+          the_file.write('\n')
+          the_file.write('}\n')
 
     return output, len(categories)
 

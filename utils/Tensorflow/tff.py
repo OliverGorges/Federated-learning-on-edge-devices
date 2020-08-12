@@ -6,13 +6,15 @@ import sys
 import tensorflow as tf
 import os
 import numpy as np
-import random 
+import random
 import time
 from shutil import copyfile
-
+import json
 from object_detection.utils import config_util
 from object_detection.builders import model_builder
 
+#Send Data
+import socket
 
 from utils.Tensorflow.tfliteConverter import convertModel
 
@@ -48,13 +50,13 @@ def aggregateVariables(checkpoint_dicts):
     for key in chkps[0].keys():
         if key == "id":
             continue
-        if x[key].ndim == 1: 
+        if x[key].ndim == 1:
             inputData = [x[key] for x in chkps]
             aggregatedData[key] = np.average(inputData, axis=0, weights=[1 for x in chkps])
         else:
             inputData = [x[key][0] for x in chkps]
             aggregatedData[key] = np.expand_dims(np.average(inputData, axis=0, weights=[1 for x in chkps]), axis=0)
-            
+
     return aggregatedData
 
 def writeCheckpointValues(data, pipeline, out, checkpoint_file):
@@ -72,7 +74,7 @@ def writeCheckpointValues(data, pipeline, out, checkpoint_file):
     configs = config_util.get_configs_from_pipeline_file(pipeline)
     copyfile(pipeline, pipeline_out)
     detection_model = model_builder.build(configs['model'], is_training=True)
-    
+
     checkpoint = tf.train.Checkpoint(model=detection_model)
     checkpoint.restore( checkpoint_file).expect_partial()
 
@@ -112,12 +114,11 @@ def readCheckpointValues(path, trainable=True):
     trainable: load just trainable variables, Default: True
     """
     tf.keras.backend.clear_session()
-    print(path)
     pipeline = path[0]
     checkpoint = path[1]
     id = path[2]
     values = {}
-    
+
     randomModi = random.random() + 0.5 # random values between 0.5 and 1.5
     print(f"Load Checkpoint {checkpoint} {id} {randomModi}")
     configs = config_util.get_configs_from_pipeline_file(pipeline)
@@ -129,9 +130,22 @@ def readCheckpointValues(path, trainable=True):
     y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([320, 320, 3], ndmin=2))
 
     variables = detection_model.trainable_variables
-
+    # Dump 16Bit Json
     for v in variables:
-        values[v.name] = v.numpy() #* randomModi
+        values[v.name] = np.float16(v.numpy()).tolist() #* randomModi
+
+    data = json.dumps(values)
+    with open('data16.json', 'w') as outfile:
+        json.dump(data, outfile)
+
+    # Dump 32Bit Json
+    for v in variables:
+        values[v.name] = v.numpy().tolist() #* randomModi
+
+    data = json.dumps(values)
+    with open('data32.json', 'w') as outfile:
+        json.dump(data, outfile)
+
     """
     names = [weight.name for layer in model.layers for weight in layer.weights]
     weights = model.get_weights()
@@ -145,18 +159,25 @@ def readCheckpointValues(path, trainable=True):
     #for var in variables:
         #values[var[0]] = ckpt.get_tensor(var[0]).numpy()
 
-    
+
     return values
 
 
-def sendData(path, dest, endpoint, trainable=True):
+def sendData(path, host, port, trainable=True):
     """
     Sends raw checkpoint data to another device/server
     """
+    readCheckpointValues(path, trainable=trainable)
+
+    #Init Socket
+    socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+
     pass
 
 if __name__ == "__main__":
-    
+    readCheckpointValues(("Traindata\\output\\test002\\custom_pipeline.config","Traindata\\output\\test002\\ckpt-3", 1))
+    exit()
     model_id = "FederatedTestModel"
     modelDir = os.path.join("Traindata", "model", model_id)
     pipeline = os.path.join(modelDir, "custom_pipeline.config")
@@ -165,7 +186,7 @@ if __name__ == "__main__":
     nrbs = [42 ,43]
     for nr in nrbs:
         checkpoints.append(os.path.join(modelDir, "checkpoint", f"ckpt-{nr}"))
-    
+
 
     output = os.path.join(modelDir, 'tflite')
     convertModel(modelDir, output)
@@ -181,7 +202,7 @@ if __name__ == "__main__":
     print(f'Load Ref: {t2-t1}')
     for i, c in enumerate(checkpoints):
         chkps.append(readCheckpointValues((pipeline, c , i)))
-        
+
     t3 = time.time()
     print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}')
     aggregatedData = aggregateVariables(chkps)

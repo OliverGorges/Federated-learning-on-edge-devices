@@ -396,7 +396,6 @@ def aggregateResults():
 @app.route('/eval')
 def evalResults():
     plan = json.load(open(os.path.join("tasks", f"{taskId}.json")))
-
 ## Info Endpoints
 @app.route('/status')
 def getStatus():

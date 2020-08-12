@@ -65,16 +65,11 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
             images, shapes = self.model.preprocess(x)
             prediction_dict = self.model.predict(images, shapes)
             detections = self.model.postprocess(prediction_dict, shapes)
-            boxes = detections['detection_boxes']
-            scores = detections['detection_scores'][:,:,None]
-            classes = detections['detection_classes'][:,:,None]
-            combined = tf.concat([boxes, classes, scores], axis=2)
-            return combined
+            return detections
 
     km = MyModel(detection_model)
 
     y = km.predict(np.random.random((1,320,320,3)).astype(np.float32))
-    print(y)
     converter = tf.lite.TFLiteConverter.from_keras_model(km)
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
     converter.experimental_new_converter = True

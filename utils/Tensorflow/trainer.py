@@ -7,7 +7,7 @@ import pathlib
 import tensorflow.compat.v2 as tf
 from object_detection import model_lib_v2
 import time
-import logging 
+import logging
 import cv2
 import numpy as np
 from object_detection import model_hparams
@@ -35,7 +35,7 @@ def splitList(data, i):
 
 
 def augmentData(imageDir, annotationDir, outputDir, split=1):
-    
+
     if split > 1:
         images = splitList(sorted(os.listdir(imageDir)), split)
         annos = splitList(sorted(os.listdir(annotationDir)), split)
@@ -61,7 +61,7 @@ def augmentData(imageDir, annotationDir, outputDir, split=1):
                 copy(os.path.join(annotationDir, anno), folder)
             annotationSubsets.append(folder)
         return imageSubsets, annotationSubsets
-    else: 
+    else:
         imgOut = os.path.join(outputDir, "images")
         annoOut = os.path.join(outputDir, "annotations")
         for img in sorted(os.listdir(imageDir)):
@@ -76,14 +76,14 @@ def prepareTFrecord(dataDir, annoDir, outputDir, labelmap=None, annoFormat=None,
     # Convert single annotation Files to AnnotationFile for Train and Eval
     if annoFormat == "XML":
         annotationFiles, size, classes =  XmlConverter().convert(dataDir, annoDir,  outputDir, labelmap, split)
-    elif annoFormat == "JSON": 
+    elif annoFormat == "JSON":
         annotationFiles, size, classes =  JsonConverter().convert(dataDir, annoDir,  outputDir, labelmap, split)
     else:
         annotationFiles =  [file for file in os.listdir(outputDir) if file.endswith(".json")]
         size = [0, 10]
     print( annotationFiles)
 
-    
+
     config['num_classes'] = classes
 
     # Creates TFrecord for Train and Eval Annotations
@@ -113,7 +113,7 @@ def exportFrozenGraph(modelDir, input_shape=None ):
             trained_checkpoint_prefix = os.path.join(trained_checkpoint, f)[:-6]
     if not input_shape:
         input_shape = [None, 320, 320, 3]
-      
+
     print(trained_checkpoint_prefix)
     pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
     with tf.io.gfile.GFile(pipeline_config_path, 'r') as f:
@@ -126,8 +126,99 @@ def exportFrozenGraph(modelDir, input_shape=None ):
     exporter_lib_v2.export_inference_graph(
         "float_image_tensor", pipeline_config, trained_checkpoint,  outputDir)
 
+def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1, eval_every_n_steps=1000):
+    modelDir = os.path.join("Traindata", "model", model)
 
-def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1, eval_checkpoint=False):    
+    if  eval_every_n_steps > steps:
+        eval_every_n_steps = steps
+
+    if not steps%eval_every_n_steps == 0:
+        logging.warning(f"Can't run all steps with current eval step size, {steps%eval_every_n_steps} will be missing!")
+
+    if not os.path.exists(modelOutput):
+        os.makedirs(modelOutput)
+
+    # Create Pipeline Config
+    config = {}
+
+    # Load TFRecords
+    if tfRecordsConfig is None:
+        search = os.listdir(dataDir)
+        for f in search:
+            if f.startswith('Train.record'):
+                config["train_input"] = str(pathlib.Path(os.path.join(dataDir, f)).absolute())
+            if f.startswith('Eval.record'):
+                config["eval_input"] = str(pathlib.Path(os.path.join(dataDir, f)).absolute())
+                config["num_eval"] = 10
+    else:
+        if "train_input" in tfRecordsConfig:
+            config["train_input"] = tfRecordsConfig["train_input"]
+
+        if "eval_input" in tfRecordsConfig:
+            config["eval_input"] = tfRecordsConfig["eval_input"]
+            config["num_eval"] = tfRecordsConfig["num_eval"]
+    config["label_map"] = str(pathlib.Path(os.path.join(modelDir, "labelmap.pbtxt")).absolute())
+
+    # Check if there are checkpoints from older runs
+    checkpoint = None
+    for f in os.listdir(modelOutput):
+        if f.endswith(".index"):
+            checkpoint = os.path.join(modelOutput, f)[:-6]
+
+    if checkpoint is None:
+        finetune_checkpoint = ""
+        for f in os.listdir(os.path.join(modelDir, "checkpoint")):
+            if f.endswith(".index"):
+               finetune_checkpoint = f[:-6]
+        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", finetune_checkpoint)).absolute())
+    else:
+        config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
+
+
+    config['num_classes'] = tfRecordsConfig['num_classes']
+
+
+    #pipeline_config = 'models/research/object_detection/configs/tf2/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8.config'
+    pipeline_config_path = os.path.join(modelOutput, "custom_pipeline.config")
+    # Modify Pipeline file with the configuration data
+    pipeline_config.setConfig(os.path.join(modelDir, "pipeline.config"), config, pipeline_config_path)
+
+
+
+
+    # TF2
+    tf.keras.backend.clear_session()
+
+
+    tf.config.set_soft_device_placement(True)
+
+    for train_steps in range(eval_every_n_steps, steps+1, eval_every_n_steps):
+        # train Model
+        if num_workers > 1:
+            strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+        else:
+            strategy = tf.compat.v2.distribute.MirroredStrategy()
+
+        with strategy.scope():
+            model_lib_v2.train_loop(
+                pipeline_config_path=pipeline_config_path,
+                model_dir=modelOutput,
+                train_steps=train_steps,
+                checkpoint_every_n=eval_every_n_steps,
+                checkpoint_max_to_keep=2)
+
+        logging.info(f"Trainsteps: {train_steps}")
+        # Run Eval once and then let it timeout to containue with training
+        model_lib_v2.eval_continuously(
+            pipeline_config_path= pipeline_config_path,
+            model_dir= modelOutput,
+            train_steps= train_steps,
+            sample_1_of_n_eval_examples= 1,
+            sample_1_of_n_eval_on_train_examples=(1),
+            checkpoint_dir=modelOutput,
+            wait_interval=10, timeout=10)
+
+def train( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1):
     modelDir = os.path.join("Traindata", "model", model)
 
     if not os.path.exists(modelOutput):
@@ -151,8 +242,8 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
 
         if "eval_input" in tfRecordsConfig:
             config["eval_input"] = tfRecordsConfig["eval_input"]
-            config["num_eval"] = tfRecordsConfig["num_eval"]    
-    config["label_map"] = str(pathlib.Path(os.path.join(modelDir, "labelmap.pbtxt")).absolute())
+            config["num_eval"] = tfRecordsConfig["num_eval"]
+    config["label_map"] = str(pathlib.Path(os.path.join(dataDir, "labelmap.pbtxt")).absolute())
 
     # Check if there are checkpoints from older runs
     checkpoint = None
@@ -161,81 +252,99 @@ def trainer( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2
             checkpoint = os.path.join(modelOutput, f)[:-6]
 
     if checkpoint is None:
-        print(os.listdir(os.path.join(modelDir, "checkpoint")))
+        finetune_checkpoint = ""
         for f in os.listdir(os.path.join(modelDir, "checkpoint")):
             if f.endswith(".index"):
-                checkpoint = os.path.join(modelDir, "checkpoint", f)[:-6]
-        print(checkpoint)    
-        config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
+               finetune_checkpoint = f[:-6]
+        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", finetune_checkpoint)).absolute())
     else:
         config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
 
-    
+
     config['num_classes'] = tfRecordsConfig['num_classes']
 
-    
+
     #pipeline_config = 'models/research/object_detection/configs/tf2/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8.config'
     pipeline_config_path = os.path.join(modelOutput, "custom_pipeline.config")
     # Modify Pipeline file with the configuration data
     pipeline_config.setConfig(os.path.join(modelDir, "pipeline.config"), config, pipeline_config_path)
 
+    # TF2
+    tf.keras.backend.clear_session()
+    tf.config.set_soft_device_placement(True)
 
-   
+    if num_workers > 1:
+        strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+    else:
+        strategy = tf.compat.v2.distribute.MirroredStrategy()
+
+    with strategy.scope():
+        model_lib_v2.train_loop(
+            pipeline_config_path=pipeline_config_path,
+            model_dir=modelOutput,
+            train_steps=steps)
+
+
+def eval( modelDir, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000):
+    modelDir = os.path.join("Traindata", "model", model)
+
+    if not os.path.exists(modelDir):
+        assert('Model not found!')
+
+    # Create Pipeline Config
+    config = {}
+
+    # Load TFRecords
+    if tfRecordsConfig is None:
+        search = os.listdir(dataDir)
+        for f in search:
+            if f.startswith('Train.record'):
+                config["train_input"] = str(pathlib.Path(os.path.join(dataDir, f)).absolute())
+            if f.startswith('Eval.record'):
+                config["eval_input"] = str(pathlib.Path(os.path.join(dataDir, f)).absolute())
+                config["num_eval"] = 10
+    else:
+        if "train_input" in tfRecordsConfig:
+            config["train_input"] = tfRecordsConfig["train_input"]
+
+        if "eval_input" in tfRecordsConfig:
+            config["eval_input"] = tfRecordsConfig["eval_input"]
+            config["num_eval"] = tfRecordsConfig["num_eval"]
+    config["label_map"] = str(pathlib.Path(os.path.join(dataDir, "labelmap.pbtxt")).absolute())
+
+    # Check if there are checkpoints from older runs
+    checkpointDir = os.path.join(modelDir, "checkpoint")
+    finetune_checkpoint = ""
+    for f in os.listdir(checkpointDir):
+        if f.endswith(".index"):
+            finetune_checkpoint = f[:-6]
+    config["checkpoint"] = str(pathlib.Path(os.path.join(checkpointDir, finetune_checkpoint)).absolute())
+
+
+    config['num_classes'] = tfRecordsConfig['num_classes']
+
+    for f in os.listdir(os.path.join(modelDir)):
+        if f.endswith(".config"):
+            pipeline_config_path = os.path.join(modelDir, f)
+
+    # Update Pipeline file with the configuration data
+    pipeline_config.setConfig(pipeline_config_path, config, pipeline_config_path)
+
 
     # TF2
     tf.keras.backend.clear_session()
-    
-
     tf.config.set_soft_device_placement(True)
 
-    if eval_checkpoint:
-        model_lib_v2.eval_continuously(
-            pipeline_config_path= pipeline_config_path,
-            model_dir= modelOutput,
-            train_steps= steps,
-            sample_1_of_n_eval_examples= 1,
-            sample_1_of_n_eval_on_train_examples=(1),
-            checkpoint_dir=checkpoint,
-            wait_interval=300, timeout=3600)
-    else:
-        
-        if num_workers > 1:
-            strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
-        else:
-            strategy = tf.compat.v2.distribute.MirroredStrategy()
+    model_lib_v2.eval_continuously(
+        pipeline_config_path= pipeline_config_path,
+        model_dir= modelDir,
+        train_steps= steps,
+        sample_1_of_n_eval_examples= 1,
+        sample_1_of_n_eval_on_train_examples=(1),
+        checkpoint_dir=checkpointDir,
+        wait_interval=300, timeout=3600)
 
-        with strategy.scope():
-            model_lib_v2.train_loop(
-                pipeline_config_path=pipeline_config_path,
-                model_dir=modelOutput,
-                train_steps=steps)
 
-"""
-    tf.config.set_soft_device_placement(True)
 
-    if True:
-        model_lib_v2.eval_continuously(
-            pipeline_config_path=os.path.join(modelOutput, "custom_pipeline.config"),
-            model_dir=modelOutput,
-            train_steps=steps,
-            sample_1_of_n_eval_examples=1,
-            sample_1_of_n_eval_on_train_examples=(5),
-            checkpoint_dir=os.path.join(modelDir, "checkpoint"),
-            wait_interval=300)
-    else:
-        
-        if workers > 1:
-            strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
-        else:
-            strategy = tf.compat.v2.distribute.MirroredStrategy()
-
-        with strategy.scope():
-            model_lib_v2.train_loop(
-                pipeline_config_path=os.path.join(modelOutput, "custom_pipeline.config"),
-                model_dir=modelOutput,
-                train_steps=steps,
-                use_tpu=False)
-
-"""
 
 
