@@ -12,7 +12,8 @@ from shutil import copyfile
 import json
 from object_detection.utils import config_util
 from object_detection.builders import model_builder
-
+import zipfile
+import requests
 #Send Data
 import socket
 
@@ -162,16 +163,30 @@ def readCheckpointValues(path, trainable=True):
     
     return values
 
+def zipCheckpoint(srcDict, dst):
+    zf = zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED)
+    for filename in srcDict.keys():
+        
+        zf.write(srcDict[filename], filename)
+    zf.close()
 
-def sendData(path, host, port, trainable=True):
+def sendData( url, checkpointDir, pipeline, meta):
     """
     Sends raw checkpoint data to another device/server
     """
-    readCheckpointValues(path, trainable=trainable)
-
-    #Init Socket
-    socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((host, port))
+    files = {}
+    files['pipeline.config'] = pipeline
+    files['meta.json'] = meta
+    latest_checkpoint = tf.train.latest_checkpoint(checkpointDir)[len(checkpointDir)+1:]
+    print(latest_checkpoint)
+    for f in os.listdir(checkpointDir):
+        if f.startswith(latest_checkpoint):
+            files[f] = os.path.join(checkpointDir, f)
+    print(files)
+    zipCheckpoint(files, "temp.zip")
+    fileobj = open('temp.zip', 'rb')
+    print(fileobj)
+    r = requests.post(url, data = {"mysubmit":"Go"}, files={"file": ("test.zip", fileobj)})
 
     pass
 

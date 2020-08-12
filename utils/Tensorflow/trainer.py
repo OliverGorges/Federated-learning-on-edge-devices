@@ -10,6 +10,7 @@ import time
 import logging 
 import cv2
 import boto3
+import requests
 import numpy as np
 import json
 import xml.etree.ElementTree as ET
@@ -18,9 +19,9 @@ from object_detection import model_lib
 from google.protobuf import text_format
 from object_detection import exporter_lib_v2
 from object_detection.protos import pipeline_pb2
-
 from object_detection.utils import config_util
 from object_detection.builders import model_builder
+from tensorflow.python.summary.summary_iterator import summary_iterator
 import numpy
 
 logging.basicConfig(level=logging.DEBUG)
@@ -66,7 +67,11 @@ def augmentData(imageDir, annotationDir, outputDir, split=1):
         return imageSubsets, annotationSubsets
     else: 
         imgOut = os.path.join(outputDir, "images")
+        if not os.path.exists(imgOut):
+                os.mkdir(imgOut)
         annoOut = os.path.join(outputDir, "annotations")
+        if not os.path.exists(annoOut):
+                os.mkdir(annoOut)
         for img in sorted(os.listdir(imageDir)):
             copy(os.path.join(imageDir,img), imgOut)
         for anno in sorted(os.listdir(annotationDir)):
@@ -129,7 +134,7 @@ def exportFrozenGraph(modelDir, input_shape=None ):
     exporter_lib_v2.export_inference_graph(
         "float_image_tensor", pipeline_config, trained_checkpoint,  outputDir)
 
-def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1, eval_every_n_steps=1000):
+def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1, eval_every_n_steps=1000, _eval_callback=None):
     modelDir = os.path.join("Traindata", "model", model)
 
     if  eval_every_n_steps > steps:
@@ -221,6 +226,37 @@ def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet
             sample_1_of_n_eval_on_train_examples=(1),
             checkpoint_dir=modelOutput,
             wait_interval=10, timeout=10)
+        
+        # Send Tensorflow metadata
+        meta = {}
+        tags = ['DetectionBoxes_Percision/mAP', 'DetectionBoxes_Recall/AR@1', 'loss', 'Loss/classification_loss', 'Loss/localization_loss', 'Loss/regularization_loss', 'Loss/total_loss']
+        # eval
+        evalDir = os.path.join(modelOutput, 'eval')
+        evalFile = os.listdir(evalDir).pop()
+        print(evalFile)
+        evalMeta = {}
+        for e in tf.compat.v1.train.summary_iterator(os.path.join(evalDir, evalFile)):
+            for v in e.summary.value:
+                print(v.tag)
+                if v.tag in tags:
+                    print(v)
+                    evalMeta[v.tag] = v.simple_value
+        meta['eval'] = evalMeta
+
+        # train
+        trainDir = os.path.join(modelOutput, 'train')
+        trainMeta = {}
+        for e in tf.compat.v1.train.summary_iterator(os.path.join(trainDir, os.listdir(trainDir).pop())):
+            for v in e.summary.value:
+                print(v.tag)
+                if v.tag in tags:
+                    trainMeta[v.tag] = v.simple_value
+        meta['train'] = trainMeta
+        print(meta)
+        if _eval_callback:
+            _eval_callback(meta)
+        with open(os.path.join(modelOutput, 'meta.json'), 'w') as outfile:
+            json.dump(meta, outfile)
 
 def train( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, num_workers=1):    
     modelDir = os.path.join("Traindata", "model", model)
