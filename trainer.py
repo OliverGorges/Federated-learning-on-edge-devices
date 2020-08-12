@@ -25,6 +25,10 @@ def default(obj):
         return obj.as_list()
     raise TypeError('Unknown type:', type(obj))
 
+def callback(data):
+    logging.info(f'http://{host}/meta/{task["Key"]} => {data}')
+    requests.post(f'http://{host}/meta/{task["Key"]}', json=json.loads(json.dumps(data, default=default)))
+
 # register Clients
 client = requests.get(f'http://{ host }/reg').json()
 print(client)
@@ -93,7 +97,7 @@ result = os.path.join("Traindata", "output", taskname)
 if not os.path.exists(result):
         os.mkdir(result)
 tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.8)
-train_eval(result, dataDir, tfRecordsConfig=tfrecordConfig, model=task['ModelVersion'], steps=steps, eval_every_n_steps=200)
+train_eval(result, dataDir, tfRecordsConfig=tfrecordConfig, model=task['ModelVersion'], steps=steps, eval_every_n_steps=200, _eval_callback=callback)
         
 checkpoint = [f for f in os.listdir(result) if f.endswith('.index')].pop()[:-6]
 logging.info(f'Latest Checkpoint: {checkpoint}')
