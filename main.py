@@ -12,16 +12,26 @@ from PIL import Image, ImageOps
 from concurrent.futures import ThreadPoolExecutor
 from utils.ThermalImage.camera import Camera as ThermalCamera
 from utils.Tensorflow.detection import FaceDetection
+from utils.OpenCV.detection import FaceDetection as FaceDetectionCV
 from utils.Tensorflow.postprocess import drawBoxes
+from utils.OpenCV.postprocess import drawBoxes as drawBoxesCV
 from utils.OpenCV.camera import Camera
 from utils.ThermalImage.postprocess import dataToImage
-from utils.Dataset.annotation import jsonAnnotaions
+from utils.Dataset.annotation import jsonAnnotaions, previewAnnotaion
 from utils.fps import FPS
 from io import BytesIO
 import multiprocessing
+from flask import Flask
+import json
 
 #Log
 logging.basicConfig(level=logging.DEBUG)
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, numpy.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 #Dataset config
 dataset = os.path.join(os.getcwd(), "Dataset")
@@ -45,8 +55,10 @@ termalfaces = []
 
 # Init OpenCV
 c = Camera()
-faceDetection1 = FaceDetection(model="TFlite", modelType="tflite")
-faceDetection2 = FaceDetection(model="TFlite", modelType="tflite")
+model1 = os.path.join("Traindata", "model", "TFlite_Mask")
+model2 = os.path.join("Traindata", "model", "TFlite_Thermal")
+faceDetection1 = FaceDetectionCV()
+faceDetection2 = FaceDetection(model=model2, modelType="tflite")
 # Image queue to delay thermal Image
 data_queue = []
 delay = 0
@@ -54,6 +66,7 @@ tick = 0
 
 c1, c2 = 0, 0
 
+# Threads
 def thermalImageThread():
     t1 = time.time()
     #get Data
@@ -73,6 +86,7 @@ def detectionThread(queue, inputDict, detector):
     logging.debug(f"Runtime DetectionThread:  {time.time() - t1} Detections: {inputDict['Faces']['num_detections']}")
     queue.put(inputDict)
 
+
 # sample image
 frame = c.takeImage()
 oSize = c.shape #Get the size of the original Image
@@ -83,6 +97,8 @@ detectionThread1,  detectionThread2 = None, None
 frameDict = {}
 q = multiprocessing.Queue()
 with ThreadPoolExecutor(max_workers=8) as executor:
+    
+    
     while True:
         # Capture frame-by-frame
         liveFrame = c.takeImage()
@@ -138,19 +154,24 @@ with ThreadPoolExecutor(max_workers=8) as executor:
             frame = cv2.resize(frameDict["PICam"]["Image"], outputSize , interpolation = cv2.INTER_AREA)
             
             prevFrame = frame.copy()
-
-            # Draw a rectangle around the faces
-            prevFrame = drawBoxes(prevFrame, frameDict["PICam"]["Faces"])
-            prevFrame = drawBoxes(prevFrame, frameDict["ThermalCam"]["Faces"], (0,0,255))
             
             # Merge both images
-            alpha = 0.6
+            alpha = 0.8
             print(f'Norm2: {prevFrame.shape}')
             prevFrame = cv2.addWeighted(prevFrame, alpha, frameDict["ThermalCam"]["Image"], 1-alpha, 0.0)
+            
+            
+            os.path.join("MainUI", "static", "prevFrame.png")
+            cv2.imwrite(os.path.join("MainUI", "static", "prevFrame.png"),prevFrame)
 
+            # Draw a rectangle around the faces
+            prevFrame = drawBoxesCV(prevFrame, frameDict["PICam"]["Faces"])
+            prevFrame = drawBoxes(prevFrame, frameDict["ThermalCam"]["Faces"], (0,0,255))
+            
             cv2.putText(prevFrame, f'FPS: {int(fps)}', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
             print(int(fps))
-
+            
+            previewAnnotaion(frameDict["ThermalCam"]["Data"], (frameDict["PICam"]["Faces"], frameDict["ThermalCam"]["Faces"]), os.path.join("MainUI", "static", "meta.json"))
             # Display the resulting frame
             cv2.imshow('Video', prevFrame)
             frameDict = {}

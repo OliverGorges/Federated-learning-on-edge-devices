@@ -12,7 +12,6 @@ import concurrent.futures
 from copy import deepcopy
 from PIL import Image, ImageOps
 from io import BytesIO
-from picamera import PiCamera
 
 from utils.ThermalImage.camera import Camera as ThermalCamera
 from utils.OpenCV.detection import FaceDetection
@@ -25,7 +24,7 @@ from utils.fps import FPS
 logging.basicConfig(level=logging.INFO)
 
 #Dataset config
-dataset = os.path.join(os.getcwd(), "Dataset")
+dataset = os.path.join(os.getcwd(), "Dataset", "ThermalDetection2")
 defaultGap = 20
 gap = 2 # every x image will be added to the Dataset
 resetGap = 50 # Resets the Gap when nothing happens for x frames
@@ -73,7 +72,9 @@ while True:
     start = time.time()
 
     frame = c.takeImage()
-
+    
+    frame, size = c.cropImage(frame)
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as e:
         # Check if the Thermal Camera Therad is still running
         if thermalThread is None or thermalThread.done():
@@ -108,7 +109,7 @@ while True:
                     try:
                         # Transform 16Bit data to 8 Bit
                         thermalImg = dataToImage(data, outputSize)
-                        cv2.imshow('ThermalVideo', thermalImg)
+                        #cv2.imshow('ThermalVideo', thermalImg)
                     except:
                         logging.debug("No Thermal Image Data")
 
@@ -117,18 +118,23 @@ while True:
 
                 prevFrame = frame.copy()
                 # Draw a rectangle around the faces
-                frame = drawBoxes(prevFrame, faces)
+                prevFrame = drawBoxes(prevFrame, faces)
 
                 cv2.putText(prevFrame, f'FPS: {int(fps)}', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
                 
                 #print(int(fps))
-
+                try:
+                    alpha = 0.4
+                    prevFrame = cv2.addWeighted(prevFrame, alpha, cv2.resize(thermalImg, outputSize , interpolation = cv2.INTER_AREA), 1-alpha, 0.0)
+                except:
+                    print("Cant merge Image")
                 # Display the resulting frame
                 cv2.imshow('Video', prevFrame)
 
                 #Save Data
                 try:
-                    if len(faces) > 0 and gap <= 0 :
+                    if faces['num_detections'] > 0 and gap <= 0 :
+                        
                         gap = defaultGap
                         resetGap = 50
                         uuid = str(uuid4())
@@ -137,7 +143,7 @@ while True:
                         cv2.imwrite(os.path.join(dataset, "ThermalImages", uuid + ".jpg"), thermalImg)
                         jsonAnnotaions(uuid, data, faces, os.path.join(dataset, "Annotations"))
                 except:
-                    logging.warning("Cant create Annotation")
+                    logging.info('Can`t create Annotation')
                 else:
                     gap = gap - 1
 

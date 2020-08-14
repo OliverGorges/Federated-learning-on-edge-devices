@@ -7,7 +7,7 @@ Methods that a used to display the Images
 
 def drawBoxes(image, boxes, color=(0, 255, 0)):
     width, height = image.shape[:2]
-    for (x, y, w, h) in boxes:
+    for (x, y, w, h) in boxes['detection_boxes']:
         x = int(x * width)
         y = int(y * height)
         w = int(w * width)

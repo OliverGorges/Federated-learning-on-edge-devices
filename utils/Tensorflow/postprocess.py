@@ -7,13 +7,12 @@ Methods to process modelreuslts and Images
 
 def drawBoxes(image, detection, color=(0, 255, 0)):
     width, height = image.shape[:2]
-    print(len(detection['detection_boxes']))
     if 'detection_boxes' in detection:
         
-        print(max(detection['detection_scores']))
+        print(max(detection['detection_scores'], default=0))
         for i in range(len(detection['detection_boxes'])):
             score = detection['detection_scores'][i]
-            if score > 0.25:
+            if score > 0.1:
                 try:
                     (x, y, w, h) = detection['detection_boxes'][i]
                     name = detection['detection_classes'][i]

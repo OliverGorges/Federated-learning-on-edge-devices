@@ -1,0 +1,176 @@
+<html>
+<head>
+	<style>
+
+         /* Style inputs, select elements and textareas */
+        input[type=text], select, textarea{
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        resize: vertical;
+        }
+
+        /* Style the label to display next to the inputs */
+        label {
+        padding: 12px 12px 12px 0;
+        display: inline-block;
+        }
+
+        /* Style the submit button */
+        input[type=submit] {
+        background-color: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        float: right;
+        }
+
+        /* Style the container */
+        .container {
+        border-radius: 5px;
+        background-color: #f2f2f2;
+        padding: 20px;
+        }
+
+        /* Floating column for labels: 25% width */
+        .col-25 {
+        float: left;
+        width: 25%;
+        margin-top: 6px;
+        }
+
+        /* Floating column for inputs: 75% width */
+        .col-75 {
+        float: left;
+        width: 75%;
+        margin-top: 6px;
+        }
+
+        /* Clear floats after the columns */
+        .row:after {
+        content: "";
+        display: table;
+        clear: both;
+        }
+
+        /* Responsive layout - when the screen is less than 600px wide, make the two columns stack on top of each other instead of next to each other */
+        @media screen and (max-width: 600px) {
+        .col-25, .col-75, input[type=submit] {
+            width: 100%;
+            margin-top: 0;
+        }
+        } 
+    </style>
+	<script>
+		window.onload = function() {
+			setInterval(
+			function refresh(){
+				document.getElementById('image').src = "/image?timestamp=" + new Date().getTime()
+				//var preview = document.getElementById("image");
+				//var con = preview.getContext("2d");
+				//var image = new Image();
+				//image.src = "/static/prevFrame.png"
+				//con.drawImage(image, 0, 0, 640, 480);
+				
+				var temp = document.getElementById("temp");
+				var con = temp.getContext("2d");
+				con.beginPath();
+				con.arc(20, 20, 10, 0, 2 * Math.PI, true);
+				con.fillStyle = "red"
+				con.fill();
+				con.font ="20px Arial";
+				con.fillStyle = "black"
+				con.strokeText("High Temp", 35, 25);
+
+				con.beginPath();
+				con.arc(20, 60, 10, 0, 2 * Math.PI, true);
+				con.fillStyle = "yellow"
+				con.fill();
+				con.font ="20px Arial";
+				con.fillStyle = "black"
+				con.strokeText("Risk", 35, 65);
+				
+				con.beginPath();
+				con.arc(20, 100, 10, 0, 2 * Math.PI, true);
+				con.fillStyle = "green"
+				con.fill();
+				con.font ="20px Arial";
+				con.fillStyle = "black"
+				con.strokeText("OK", 35, 105);
+				
+				
+				
+				var mask = document.getElementById("mask");
+				var con = mask.getContext("2d");
+				
+				con.beginPath();
+				con.arc(20, 20, 10, 0, 2 * Math.PI, true);
+				con.fillStyle = "red"
+				con.fill();
+				con.font ="20px Arial";
+				con.strokeText("No Mask", 35, 25);
+				
+				con.beginPath();
+				con.arc(20, 60, 10, 0, 2 * Math.PI, true);
+				con.fillStyle = "yellow"
+				con.fill();
+				con.font ="20px Arial";
+				con.strokeText("Wrong Mask", 35, 65);
+
+				con.beginPath();
+				con.arc(20, 100, 10, 0, 2 * Math.PI, true);
+				con.fillStyle = "green"
+				con.fill();
+				con.font ="20px Arial";
+				con.fillStyle = "black"
+				con.strokeText("OK", 35, 105);
+
+				
+				fetch("/anno")
+				.then(function (response) {
+					return response.json();
+					})
+				.then(function (json) {
+					console.log(json)
+					
+				})
+				
+				
+				
+			},
+			1000);
+		}
+		
+	</script>
+</head>
+<body>
+
+<h1>Hello World</h1>
+<div class="row">
+	<div class="col-25">
+		<div class="row">
+			<p>Temp:</p>
+			<canvas id = "temp"
+			   height = "120"
+			   width = "200">
+		</div>
+	   <div class="row">
+		   <p>Mask:</p>
+			<canvas id = "mask"
+			   height = "120"
+			   width = "200">
+		</div>
+	</div>
+	<div class="col-75">
+		<img id="image" src="/image>
+	</div>
+<div id="meta"></div>
+</body>
+
+</html>
+
+

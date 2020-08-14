@@ -29,15 +29,28 @@ class FaceDetection():
         self.faces = self.faceCascade.detectMultiScale(
                 image,
                 scaleFactor=1.1,
-                minNeighbors=5,
+                minNeighbors=30,
                 minSize=(30, 30),
                 flags=cv2.CASCADE_SCALE_IMAGE
         )
+        
+        
         if normalized:
-            return self.normalizeBoxes()
+             detection_boxes = self.normalizeBoxes()
         else:
-            return self.faces
-
+            detection_boxes = self.faces
+        
+        # transform output
+        output_dict = {}
+        output_dict['detection_boxes'] = detection_boxes
+        output_dict['detection_classes'] = [1 for x in range(len(detection_boxes))]
+        output_dict['detection_scores'] = [1 for x in range(len(detection_boxes))]
+        output_dict['num_detections'] =  len(detection_boxes)
+        print(output_dict)
+        return output_dict
+        
+    
+    
     # Normale Boxes for annoationfiles
     def normalizeBoxes(self, image=None, faces=None):
         if not image:
