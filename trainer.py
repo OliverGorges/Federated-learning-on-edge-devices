@@ -11,9 +11,11 @@ import requests
 import json
 from utils.Tensorflow.tff import sendData
 
+logging.propagate = False 
+
 split = 0
 save = False
-host = "192.168.178.23:5000"#"3.120.138.160:5000"
+host = "192.168.178.23:5000"#"3.120.138.160:5000"#
 
 def default(obj):
     if type(obj).__module__ == numpy.__name__:
@@ -36,15 +38,15 @@ if int(client['id']) == 0:
     exit()
 
 # load Data
-compData = os.path.join("Dataset", "data.zip")
+compData = os.path.join("Dataset2", "data.zip")
 result = requests.get(f'http://{ host }/data').json()
 print(result["filename"][:-4])
-print(os.listdir("Dataset"))
-if not result["filename"][:-4] in os.listdir("Dataset"):
+print(os.listdir("Dataset2"))
+if not result["filename"][:-4] in os.listdir("Dataset2"):
     s3 = boto3.client('s3')
     s3.download_file('federatedlearning-cg', f'data/{result["filename"]}', compData)
     with ZipFile(compData, 'r') as zipObj:
-        zipObj.extractall("Dataset")
+        zipObj.extractall("Dataset2")
 
     # remove compressed Data
     os.remove(compData) 
@@ -67,9 +69,9 @@ if not task['Accepted']:
 taskname = task['Task']
 outDir = os.path.join("Traindata", "output", taskname)
 data = task['Data']
-case = os.listdir("Dataset")[0]
-imgDir = os.path.join("Dataset", case, 'images')
-annoDir = os.path.join("Dataset", case, "annotations")
+case = os.listdir("Dataset2")[0]
+imgDir = os.path.join("Dataset2", case, 'images')
+annoDir = os.path.join("Dataset2", case, "annotations")
 # Check Annotation format
 if os.listdir(annoDir)[0].endswith('.json'):
     annoformat = "JSON"
@@ -81,16 +83,16 @@ dataDir = os.path.join("Traindata","data")
 
 #Find Labelmap
 labelmap = None
-files = os.listdir(os.path.join("Dataset", case))
+files = os.listdir(os.path.join("Dataset2", case))
 for f in files:
     if f.startswith("label_map"):
-        labelmap = os.path.join("Dataset", case, f)
+        labelmap = os.path.join("Dataset2", case, f)
         break
 
 if 'steps' in task:
     steps = task['steps']
 else:
-    steps = 1000
+    steps = 400
 
 augImages, augAnnotations = augmentData(imgDir, annoDir, dataDir, split)
 
@@ -98,10 +100,12 @@ result = os.path.join("Traindata", "output", taskname)
 if not os.path.exists(result):
         os.mkdir(result)
 tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.8)
+t1 = time.time()
 train_eval(result, dataDir, tfRecordsConfig=tfrecordConfig, model=task['ModelVersion'], steps=steps, eval_every_n_steps=200, _eval_callback=callback)
+
+logging.info(f"Traintime on {steps} steps: {time.time()-t1}")
 pipeline = os.path.join(result, "custom_pipeline.config") 
 meta = os.path.join(result, "meta.json")       
 logging.info(f'{result}, {pipeline}, {meta}')
 sendData(f'http://{host}/results/{client["id"]}', result, pipeline, meta)
 
-print(result.text)
