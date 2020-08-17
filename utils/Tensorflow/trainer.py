@@ -34,11 +34,14 @@ def splitList(data, i):
     return result
 
 
-def augmentData(imageDir, annotationDir, outputDir, split=1):
-    
+def augmentData(imageDir, annotationDir, outputDir, split=1, labelmap=""):
+    rawImages = sorted(os.listdir(imageDir))
+    rawAnno = sorted(os.listdir(annotationDir))
+    filteredImages = []
+    filteredImages = [i for i in rawImages if f'{i[:-4]}.json' in rawAnno]
     if split > 1:
-        images = splitList(sorted(os.listdir(imageDir)), split)
-        annos = splitList(sorted(os.listdir(annotationDir)), split)
+        images = splitList(filteredImages, split)
+        annos = splitList(rawAnno, split)
         imageSubsets = []
         annotationSubsets = []
         for i in range(split):
@@ -47,6 +50,14 @@ def augmentData(imageDir, annotationDir, outputDir, split=1):
                 os.mkdir(folder)
                 os.mkdir(os.path.join(folder, 'images'))
                 os.mkdir(os.path.join(folder, 'annotations'))
+            if labelmap == "":
+                for f in os.listdir(os.path.join(annotationDir, "..")):
+                    if f.endswith('.xml') or f.endswith('.json'):
+                        lastFolder = annotationDir.split(os.path.sep).pop()
+                        labelmap = os.path.join(annotationDir[:-len(lastFolder)], f)
+                        break
+            logging.info(f'{labelmap}, {folder}')
+            copy(labelmap, folder)
 
         for i, imageset in enumerate(images):
             folder = os.path.join(outputDir, f'Subset{i}', 'images')
@@ -64,15 +75,23 @@ def augmentData(imageDir, annotationDir, outputDir, split=1):
     else: 
         imgOut = os.path.join(outputDir, "images")
         if not os.path.exists(imgOut):
-            os.mkdir(os.path.join(folder, 'images'))
+            os.mkdir(imgOut)
             
         annoOut = os.path.join(outputDir, "annotations")
         if not os.path.exists(annoOut):
-            os.mkdir(os.path.join(folder, 'annotations'))
+            os.mkdir(annoOut)
 
-        for img in sorted(os.listdir(imageDir)):
+        if labelmap == "":
+            for f in os.listdir(os.path.join(annotationDir, "..")):
+                if f.endswith('.xml') or f.endswith('.json'):
+                    labelmap = os.path.join(annotationDir, "..", f)
+                    break
+        logging.info(f'{labelmap}, {outputDir}')
+        copy(labelmap, outputDir)
+
+        for img in filteredImages:
             copy(os.path.join(imageDir,img), imgOut)
-        for anno in sorted(os.listdir(annotationDir)):
+        for anno in rawAnno:
             copy(os.path.join(annotationDir, anno), annoOut)
         return [imgOut], [annoOut]
 
@@ -165,31 +184,8 @@ def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet
             config["num_eval"] = tfRecordsConfig["num_eval"]    
     config["label_map"] = str(pathlib.Path(os.path.join(dataDir, "labelmap.pbtxt")).absolute())
 
-    # Check if there are checkpoints from older runs
-    checkpoint = None
-    for f in os.listdir(modelOutput):
-        if f.endswith(".index"):
-            checkpoint = os.path.join(modelOutput, f)[:-6]
-
-    if checkpoint is None:
-        finetune_checkpoint = ""
-        for f in os.listdir(os.path.join(modelDir, "checkpoint")):
-            if f.endswith(".index"):
-               finetune_checkpoint = f[:-6]
-        config["checkpoint"] = str(pathlib.Path(os.path.join(modelDir, "checkpoint", finetune_checkpoint)).absolute())
-    else:
-        config["checkpoint"] = str(pathlib.Path(checkpoint).absolute())
-
     
     config['num_classes'] = tfRecordsConfig['num_classes']
-
-    
-    #pipeline_config = 'models/research/object_detection/configs/tf2/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8.config'
-    pipeline_config_path = os.path.join(modelOutput, "custom_pipeline.config")
-    # Modify Pipeline file with the configuration data
-    pipeline_config.setConfig(os.path.join(modelDir, "pipeline.config"), config, pipeline_config_path)
-
-
    
 
     # TF2
@@ -199,6 +195,18 @@ def train_eval( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet
     tf.config.set_soft_device_placement(True)
     
     for train_steps in range(eval_every_n_steps, steps+1, eval_every_n_steps):
+
+        # Check if there are checkpoints from older runs
+        checkpoint = tf.train.latest_checkpoint(pathlib.Path(modelOutput).absolute())
+        if checkpoint is None:
+            checkpoint = tf.train.latest_checkpoint(pathlib.Path(os.path.join(modelDir, "checkpoint")).absolute())
+
+        config["checkpoint"] = str(checkpoint)
+
+        #write checkpoint with current trainstep and last checkpoint
+        pipeline_config_path = os.path.join(modelOutput, "custom_pipeline.config")
+        pipeline_config.setConfig(os.path.join(modelDir, "pipeline.config"), config, pipeline_config_path)
+
         # train Model
         if num_workers > 1:
             strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
