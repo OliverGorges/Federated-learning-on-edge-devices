@@ -31,81 +31,76 @@ def callback(data):
     logging.info(f'http://{host}/meta/{task["Key"]} => {data}')
     requests.post(f'http://{host}/meta/{task["Key"]}', json=json.loads(json.dumps(data, default=default)))
 
-# register Clients
-client = requests.get(f'http://{ host }/reg').json()
-print(client)
-if int(client['id']) == 0:
-    exit()
 
 # load Data
-compData = os.path.join("Dataset2", "data.zip")
-result = requests.get(f'http://{ host }/data').json()
-print(result["filename"][:-4])
-print(os.listdir("Dataset2"))
-if not result["filename"][:-4] in os.listdir("Dataset2"):
-    s3 = boto3.client('s3')
-    s3.download_file('federatedlearning-cg', f'data/{result["filename"]}', compData)
-    with ZipFile(compData, 'r') as zipObj:
-        zipObj.extractall("Dataset2")
+mnist_train, mnist_test = tf.keras.datasets.mnist.load_data()
 
-    # remove compressed Data
-    os.remove(compData) 
+def get_data_for_digit(source, digit):
+  output_sequence = []
+  all_samples = [i for i, d in enumerate(source[1]) if d == digit]
+  for i in range(0, min(len(all_samples), NUM_EXAMPLES_PER_USER), BATCH_SIZE):
+    batch_samples = all_samples[i:i + BATCH_SIZE]
+    output_sequence.append({
+        'x':
+            np.array([source[0][i].flatten() / 255.0 for i in batch_samples],
+                     dtype=np.float32),
+        'y':
+            np.array([source[1][i] for i in batch_samples], dtype=np.int32)
+    })
+  return output_sequence
+
+federated_train_data = [get_data_for_digit(mnist_train, d) for d in range(10)]
+federated_test_data = [get_data_for_digit(mnist_test, d) for d in range(10)]
+for i in range(10):
+    # register Clients
+    client = requests.get(f'http://{ host }/reg').json()
+    print(client)
+    if int(client['id']) == 0:
+        exit()
 
 
+    # Wait for Trainphase    
+    logging.info(f"{time.time()}  {client['time']}")
+    while time.time() < client['time']:
+        time.sleep(5)
+        logging.info(client['time'] - time.time())
 
-# Wait for Trainphase    
-logging.info(f"{time.time()}  {client['time']}")
-while time.time() < client['time']:
-    time.sleep(5)
-    logging.info(client['time'] - time.time())
+    task = requests.get(f'http://{ host }/task/{client["id"]}').json()
+    logging.info(task)
+    # Check if Model exists
 
-task = requests.get(f'http://{ host }/task/{client["id"]}').json()
-logging.info(task)
-# Check if Model exists
+    if not task['Accepted']:
+        exit()
 
-if not task['Accepted']:
-    exit()
+    taskname = task['Task']
 
-taskname = task['Task']
-outDir = os.path.join("Traindata", "output", taskname)
-data = task['Data']
-case = os.listdir("Dataset2")[0]
-imgDir = os.path.join("Dataset2", case, 'images')
-annoDir = os.path.join("Dataset2", case, "annotations")
-# Check Annotation format
-if os.listdir(annoDir)[0].endswith('.json'):
-    annoformat = "JSON"
-elif os.listdir(annoDir)[0].endswith('.xml'):
-    annoformat = "XML"
+    if 'steps' in task:
+        steps = task['steps']
+    else:
+        steps = 400
 
-data = task['Data']
-dataDir = os.path.join("Traindata","data")
+    model = tf.keras.models.Sequential([
+    tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
+    tf.keras.layers.Dense(128,activation='relu'),
+    tf.keras.layers.Dense(10, activation='softmax')
+    ])
+    model.compile(
+        loss='sparse_categorical_crossentropy',
+        optimizer=tf.keras.optimizers.SGD(0.001),
+        metrics=['accuracy'],
+    )
 
-#Find Labelmap
-labelmap = None
-files = os.listdir(os.path.join("Dataset2", case))
-for f in files:
-    if f.startswith("label_map"):
-        labelmap = os.path.join("Dataset2", case, f)
-        break
+    model.fit(
+        federated_train_data[i],
+        epochs=6,
+        validation_data=federated_test_data[1],
+    )
 
-if 'steps' in task:
-    steps = task['steps']
-else:
-    steps = 400
-
-augImages, augAnnotations = augmentData(imgDir, annoDir, dataDir, split)
-
-result = os.path.join("Traindata", "output", taskname)
-if not os.path.exists(result):
-        os.mkdir(result)
-tfrecordConfig = prepareTFrecord(augImages[0], augAnnotations[0], dataDir, labelmap=labelmap, annoFormat=annoformat, split=0.8)
-t1 = time.time()
-train_eval(result, dataDir, tfRecordsConfig=tfrecordConfig, model=task['ModelVersion'], steps=steps, eval_every_n_steps=200, _eval_callback=callback)
-
-logging.info(f"Traintime on {steps} steps: {time.time()-t1}")
-pipeline = os.path.join(result, "custom_pipeline.config") 
-meta = os.path.join(result, "meta.json")       
-logging.info(f'{result}, {pipeline}, {meta}')
-sendData(f'http://{host}/results/{client["id"]}', result, pipeline, meta)
+"""
+    logging.info(f"Traintime on {steps} steps: {time.time()-t1}")
+    pipeline = os.path.join(result, "custom_pipeline.config") 
+    meta = os.path.join(result, "meta.json")       
+    logging.info(f'{result}, {pipeline}, {meta}')
+    sendData(f'http://{host}/results/{client["id"]}', result, pipeline, meta)
+"""
 

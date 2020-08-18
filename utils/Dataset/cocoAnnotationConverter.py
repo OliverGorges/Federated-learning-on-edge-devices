@@ -194,7 +194,7 @@ class XmlConverter():
         "id":  int(label.find('id').text)
       })
     else:
-      labels["Face"] = 1
+      labelDict["Face"] = 1
       categories.append({
           "supercategory": "none",
           "name": "Face",

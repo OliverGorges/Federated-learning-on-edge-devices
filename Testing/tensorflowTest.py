@@ -19,8 +19,8 @@ TF 2.2.0 / Objectdtection 2.0 Tests
 class TestObjectDetection(unittest.TestCase):
 
     #General
-    def xtestconvertSavedModel(self):
-        exportFrozenGraph(os.path.join('Traindata','model','graphmod'))
+    def testconvertSavedModel(self):
+        exportFrozenGraph(os.path.join('Traindata','model','ThermalModel50K'))
 
     def xtestTfliteConverter(self):
         modelDir = os.path.join('Traindata','model','graphmod')
@@ -28,7 +28,7 @@ class TestObjectDetection(unittest.TestCase):
         convertModel(modelDir, output)
 
     #MaskDetect
-    def testMaskDetection(self):
+    def xtestMaskDetection(self):
         
         image = cv2.imread(os.path.join("Testing", "sampleData", "Maskdetect_2.jpg"), cv2.IMREAD_COLOR)
         modelDir = os.path.join('Traindata', 'model', 'MaskModel30k')
@@ -44,7 +44,7 @@ class TestObjectDetection(unittest.TestCase):
         result = drawBoxes(image, detections, color=(255, 255, 0))
         cv2.imwrite(os.path.join("Testing", "sampleData","output1.jpg"), result)
     
-    def testTfliteMaskDection(self):
+    def xtestTfliteMaskDection(self):
         image = cv2.imread(os.path.join("Testing", "sampleData", "Maskdetect_2.jpg"), cv2.IMREAD_COLOR)
         modelDir = os.path.join('Traindata', 'model', 'MaskModel30k')
         output = os.path.join(modelDir, 'tflite')
@@ -61,7 +61,7 @@ class TestObjectDetection(unittest.TestCase):
         cv2.imwrite(os.path.join("Testing", "sampleData","outputLite1.jpg"), result)
 
     #ThermalDetect
-    def testThermalDetection(self):
+    def xtestThermalDetection(self):
         
         image = cv2.imread(os.path.join("Testing", "sampleData", "ThermalFacedetect_2.jpg"), cv2.IMREAD_COLOR)
         modelDir = os.path.join('Traindata', 'model', 'ThermalModel40k')
@@ -77,7 +77,7 @@ class TestObjectDetection(unittest.TestCase):
         result = drawBoxes(image, detections)
         cv2.imwrite(os.path.join("Testing", "sampleData","output2.jpg"), result)
     
-    def testTfliteThermalDection(self):
+    def xtestTfliteThermalDection(self):
         image = cv2.imread(os.path.join("Testing", "sampleData", "ThermalFacedetect_2.jpg"), cv2.IMREAD_COLOR)
         modelDir = os.path.join('Traindata', 'model', 'ThermalModel40k')
         output = os.path.join(modelDir, 'tflite')
