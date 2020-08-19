@@ -9,9 +9,9 @@ import time
 import logging 
 import tensorflow as tf
 
-case = "ThermalFaceDetection"
+case = "cat"
 annoformat = "JSON"
-data = "ThermalImages"
+data = "Images"
 
 model = "ThermalModel40k"
 

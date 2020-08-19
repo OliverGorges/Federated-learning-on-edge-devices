@@ -79,8 +79,8 @@ class JsonConverter():
       with open(os.path.join(annotationDir, fname)) as json_file:
         print(os.path.join(annotationDir, fname))
         anno = json.load(json_file)
-        imageHeight = 480
-        imageWidth = 640
+        imageHeight = anno.get('height', 480) 
+        imageWidth = anno.get('width', 640)
         # Add all images
         images.append({
           "file_name": str(pathlib.Path(os.path.join(imageDir, anno["thermalImage"])).absolute()),

@@ -1,47 +1,63 @@
-# Copyright 2019, The TensorFlow Federated Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Script for testing a remote executor on GCP."""
+import collections
+import time
 
-from absl import app
-from absl import flags
-import grpc
+import tensorflow as tf
 import tensorflow_federated as tff
 
-FLAGS = flags.FLAGS
-
-flags.DEFINE_string('host', "10.0.0.110", 'The host to connect to.')
-flags.mark_flag_as_required('host')
-flags.DEFINE_string('port', '8000', 'The port to connect to.')
+source, _ = tff.simulation.datasets.emnist.load_data()
 
 
-def main(argv):
-  if len(argv) > 1:
-    raise app.UsageError('Too many command-line arguments.')
-
-    
-  print(tff.federated_computation(lambda: 'Hello World')())
-
-  channel = grpc.insecure_channel('{}:{}'.format(FLAGS.host, FLAGS.port))
-  ex = tff.framework.RemoteExecutor(channel)
-  ex = tff.framework.CachingExecutor(ex)
-  ex = tff.framework.ReferenceResolvingExecutor(ex)
-  factory = tff.framework.create_executor_factory(lambda _: ex)
-  context = tff.framework.ExecutionContext(factory)
-  tff.framework.set_default_context(context)
-
-  print(tff.federated_computation(lambda: 'Hello World2')())
+def map_fn(example):
+  return collections.OrderedDict(
+      x=tf.reshape(example['pixels'], [-1, 784]), y=example['label'])
 
 
-if __name__ == '__main__':
-  app.run(main)
+def client_data(n):
+  ds = source.create_tf_dataset_for_client(source.client_ids[n])
+  return ds.repeat(10).batch(20).map(map_fn)
+
+
+train_data = [client_data(n) for n in range(40)]
+input_spec = train_data[0].element_spec
+
+
+def model_fn():
+  model = tf.keras.models.Sequential([
+      tf.keras.layers.Input(shape=(784,)),
+      tf.keras.layers.Dense(units=10, kernel_initializer='zeros'),
+      tf.keras.layers.Softmax(),
+  ])
+  return tff.learning.from_keras_model(
+      model,
+      input_spec=input_spec,
+      loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+      metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+
+
+trainer = tff.learning.build_federated_averaging_process(
+    model_fn, client_optimizer_fn=lambda: tf.keras.optimizers.SGD(0.05))
+
+
+def evaluate(num_rounds=10):
+  state = trainer.initialize()
+  for round in range(num_rounds):
+    t1 = time.time()
+    state, metrics = trainer.next(state, train_data)
+    t2 = time.time()
+    print('Round {}: loss {}, round time {}'.format(round, metrics, t2 - t1))
+
+import grpc
+
+ip_address = '10.0.0.110'  #@param {type:"string"}
+port = 8025  #@param {type:"integer"}
+
+client_ex = []
+for i in range(40):
+  channel = grpc.insecure_channel('{}:{}'.format(ip_address, port))
+  client_ex.append(tff.framework.RemoteExecutor(channel, rpc_mode='STREAMING'))
+
+factory = tff.framework.worker_pool_executor_factory(client_ex)
+context = tff.framework.ExecutionContext(factory)
+tff.framework.set_default_context(context)
+
+evaluate()
