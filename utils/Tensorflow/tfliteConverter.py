@@ -57,7 +57,7 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
             super(MyModel, self).__init__()
             self.model = model
             self.seq = tf.keras.Sequential([
-                tf.keras.Input([320,320,3], 1),
+                tf.keras.Input([320,320,3], batch_size=1),
             ])
 
         def call(self, x):
@@ -68,10 +68,20 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
             return detections
 
     km = MyModel(detection_model)
-
+    
     y = km.predict(np.random.random((1,320,320,3)).astype(np.float32))
+
+    def representative_dataset_gen():
+        for _ in range(50):
+            # Get sample input data as a numpy array in a method of your choosing.
+            yield [np.random.random((1,320,320,3)).astype(np.float32)]
+   
     converter = tf.lite.TFLiteConverter.from_keras_model(km)
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+    converter.representative_dataset = representative_dataset_gen
+    #converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.int8  # or tf.uint8
+    converter.inference_output_type = tf.int8
     converter.experimental_new_converter = True
     converter.allow_custom_ops = False
     tflite_model = converter.convert()
