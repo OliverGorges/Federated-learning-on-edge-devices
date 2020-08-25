@@ -77,11 +77,11 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
             yield [np.random.random((1,320,320,3)).astype(np.float32)]
    
     converter = tf.lite.TFLiteConverter.from_keras_model(km)
-    converter.representative_dataset = representative_dataset_gen
-    #converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.int8  # or tf.uint8
-    converter.inference_output_type = tf.int8
+    #converter.representative_dataset = representative_dataset_gen
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+    #converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    #converter.inference_input_type = tf.int8  # or tf.uint8
+    #converter.inference_output_type = tf.int8
     converter.experimental_new_converter = True
     converter.allow_custom_ops = False
     tflite_model = converter.convert()

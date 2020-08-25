@@ -19,7 +19,7 @@ TF 2.2.0 / Objectdtection 2.0 Tests
 class TestObjectDetection(unittest.TestCase):
 
     #General
-    def testconvertSavedModel(self):
+    def xtestconvertSavedModel(self):
         exportFrozenGraph(os.path.join('Traindata','model','ThermalModel50K'))
 
     def xtestTfliteConverter(self):
@@ -61,10 +61,10 @@ class TestObjectDetection(unittest.TestCase):
         cv2.imwrite(os.path.join("Testing", "sampleData","outputLite1.jpg"), result)
 
     #ThermalDetect
-    def xtestThermalDetection(self):
+    def testThermalDetection(self):
         
         image = cv2.imread(os.path.join("Testing", "sampleData", "ThermalFacedetect_2.jpg"), cv2.IMREAD_COLOR)
-        modelDir = os.path.join('Traindata', 'model', 'ThermalModel40k')
+        modelDir = os.path.join('Traindata', 'model', 'ThermalModel70map')
         detector = FaceDetection(modelDir, "keras")
         detector.prepareImage(image, 1)
 
@@ -77,11 +77,11 @@ class TestObjectDetection(unittest.TestCase):
         result = drawBoxes(image, detections)
         cv2.imwrite(os.path.join("Testing", "sampleData","output2.jpg"), result)
     
-    def xtestTfliteThermalDection(self):
+    def testTfliteThermalDection(self):
         image = cv2.imread(os.path.join("Testing", "sampleData", "ThermalFacedetect_2.jpg"), cv2.IMREAD_COLOR)
-        modelDir = os.path.join('Traindata', 'model', 'ThermalModel40k')
+        modelDir = os.path.join('Traindata', 'model', 'ThermalModel70map')
         output = os.path.join(modelDir, 'tflite')
-        #convertModel(modelDir, output)
+        convertModel(modelDir, output)
 
         detector = FaceDetection( output, 'tflite')
         detector.prepareImage(image, 1)
