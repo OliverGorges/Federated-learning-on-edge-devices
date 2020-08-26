@@ -57,7 +57,7 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
             super(MyModel, self).__init__()
             self.model = model
             self.seq = tf.keras.Sequential([
-                tf.keras.Input([320,320,3], 1),
+                tf.keras.Input([300,300,3], 1),
             ])
 
         def call(self, x):
@@ -69,7 +69,7 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
 
     km = MyModel(detection_model)
 
-    y = km.predict(np.random.random((1,320,320,3)).astype(np.float32))
+    y = km.predict(np.random.random((1,300,300,3)).astype(np.float32))
     converter = tf.lite.TFLiteConverter.from_keras_model(km)
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
     converter.experimental_new_converter = True
