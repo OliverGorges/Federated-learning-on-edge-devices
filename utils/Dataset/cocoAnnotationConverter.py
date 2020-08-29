@@ -179,7 +179,7 @@ class XmlConverter():
     categories = []
     
     
-    nrOfAnnotations = 130
+    nrOfAnnotations = 500
     labelDict = {}
 
     # Write Labelmap in Annoation file and creat dict for labelmapping
@@ -210,7 +210,7 @@ class XmlConverter():
         "file_name": str(pathlib.Path(os.path.join(imageDir, anno.find("filename").text)).absolute()),
         "height": int(anno.find('size').find('height').text),
         "width": int(anno.find('size').find('width').text),
-        "id": i + 130
+        "id": i + 500
       })
       # Adds Objects
       for detection in anno.findall('object'):
@@ -220,7 +220,7 @@ class XmlConverter():
         box = [int(box.find("xmin").text), int(box.find("ymin").text), int(box.find("xmax").text)-int(box.find("xmin").text) , int(box.find("ymax").text)-int(box.find("ymin").text)]
         obj["bbox"] = box
         obj["area"] = box[2] * box[3]
-        obj["image_id"] = i  + 130
+        obj["image_id"] = i  + 500
         obj["iscrowd"] = 1 if len(anno.findall('object')) > 1 else 0
         obj["category_id"] = labelDict[detection.find('name').text]
         annotations.append(obj)

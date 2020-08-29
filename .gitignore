@@ -5,6 +5,7 @@
 *.pyo
 .vscode
 tfmodels/
+/Demo/
 aws/
 .DS_STORE
 TFFSamples/
