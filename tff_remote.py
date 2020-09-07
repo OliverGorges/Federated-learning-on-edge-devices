@@ -34,10 +34,23 @@ def model_fn():
       input_spec,
       metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
 
+@tff.federated_computation()
+def init():
+  logging.info("Init Process")
+  return tff.federated_zip(
+        ServerState(model=initial_global_model,
+            optimizer_state=initial_global_optimizer_state,
 
-trainer = tff.learning.build_federated_averaging_process(
-    model_fn, client_optimizer_fn=lambda: tf.keras.optimizers.SGD(0.02))
+@tff.federated_computation()
+def doSomething():
+  logging.info("Do Something")
+  return 1, 0.2
 
+trainer = tff.templates.IterativeProcess(
+      initialize_fn=init, next_fn=doSomething)
+#tff.learning.build_federated_averaging_process(
+#    model_fn, client_optimizer_fn=lambda: tf.keras.optimizers.SGD(0.02))
+tff.learning.framework.ServerState
 
 def evaluate(num_rounds=10):
   state = trainer.initialize()
@@ -50,7 +63,7 @@ def evaluate(num_rounds=10):
 
 import grpc
 
-ip_address = '192.168.178.23'  
+ip_address = '127.0.0.1'  
 port = 8000 
 
 client_ex = []
