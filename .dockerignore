@@ -1,6 +1,22 @@
-*.pptx
-Diagrams/
-ProjectImages/
-tf2/
-tasks/
-checkpoints/
+
+# Ignore everything
+*
+
+# Allow files and directories
+!/dist/**
+!/models/**
+!/Testdata/**
+!/tfmodels/**
+!/utils/*
+!/requirements.txt
+!/tffserver.py
+!/aws/*
+!/dockerfile
+!/Demo/*
+
+## Ignore .DS_STORE
+
+/.DS*
+*/.DS*
+*/*/.DS*
+*/*/*/.DS*

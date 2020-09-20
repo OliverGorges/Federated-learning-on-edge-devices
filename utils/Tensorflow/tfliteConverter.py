@@ -3,10 +3,11 @@ import os
 from google.protobuf import text_format
 from object_detection import export_tflite_ssd_graph_lib
 from object_detection.protos import pipeline_pb2
-
+import logging
 from object_detection.utils import config_util
 from object_detection.builders import model_builder
 import numpy as np
+import cv2
 
 """
 Converter form trained checkpoints/graph to a tflite graph
@@ -18,10 +19,10 @@ TODO: Problem with Conversion, results not usable
 """
 
 
-def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, ):
+def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, quantization=False ):
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    
+
     files = os.listdir(input_dir)
     if pipeline_config == "":
         pipeline_config = [pipe for pipe in files if pipe.endswith(".config")][0]
@@ -35,7 +36,7 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
         if chck.endswith(".index"):
             checkpoint_file = chck[:-6]
             # Stop search when the requested was found
-            if chck.endswith(str(checkpoint)): 
+            if chck.endswith(str(checkpoint)):
                 break
     print("#####################################")
     print(checkpoint_file)
@@ -57,7 +58,7 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
             super(MyModel, self).__init__()
             self.model = model
             self.seq = tf.keras.Sequential([
-                tf.keras.Input([320,320,3], 1),
+                tf.keras.Input([300,300,3], 1),
             ])
 
         def call(self, x):
@@ -69,11 +70,17 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
 
     km = MyModel(detection_model)
 
-    y = km.predict(np.random.random((1,320,320,3)).astype(np.float32))
+    y = km.predict(np.random.random((1,300,300,3)).astype(np.float32))
     converter = tf.lite.TFLiteConverter.from_keras_model(km)
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+    if quantization:
+        converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_LATENCY]
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8, tf.lite.OpsSet.SELECT_TF_OPS ]
+        converter.representative_dataset = _genDataset
+    else:
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
     converter.experimental_new_converter = True
     converter.allow_custom_ops = False
+    logging.info("## Start Converter")
     tflite_model = converter.convert()
 
     open(os.path.join(output_dir, 'model.tflite'), 'wb').write(tflite_model)
@@ -92,7 +99,7 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
         if chck.endswith(".meta"):
             checkpoint_file = chck[:-5]
             # Stop search when the requested was found
-            if chck.endswith(str(checkpoint)): 
+            if chck.endswith(str(checkpoint)):
                 break
     print(checkpoint_file)
     #ckeckpint_file = [chck for chck in files if chck.endswith(f"{checkpoint}.meta")][0]
@@ -102,18 +109,18 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
     # Export frozengraph from checkpoint
     export_tflite_ssd_graph(pipeline_config_path, trained_checkpoint_prefix, output_dir, True, 20, 1, 100)
 
     # TFLite I/O
     input_array = ["normalized_input_image_tensor"]
     output_array = ['TFLite_Detection_PostProcess','TFLite_Detection_PostProcess:1','TFLite_Detection_PostProcess:2','TFLite_Detection_PostProcess:3']
-    
+
     # Convert frozengraph to tflite
     converter = tf.compat.v1.lite.TFLiteConverter.from_frozen_graph(
-        os.path.join(output_dir, "tflite_graph.pb"), 
-        input_array, 
+        os.path.join(output_dir, "tflite_graph.pb"),
+        input_array,
         output_array,
         input_shapes={'normalized_input_image_tensor':[1, 300, 300, 3]}
         )
@@ -127,7 +134,27 @@ def convertModel(input_dir, output_dir, pipeline_config="", checkpoint:int=-1, )
     open(os.path.join(output_dir, "converted_model.tflite"), "wb").write(tflite_model)
     """
 
+def _genDataset():
+    sampleDir = os.path.join("Dataset", "Coco", "mixed", "Images")
+    for i in os.listdir(sampleDir):
+        image = cv2.imread(os.path.join(sampleDir, i))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.resize(image, (300,300))
+        image = image.astype("float")
+        image = np.expand_dims(image, axis=1)
+        image = image.reshape(1, 300, 300, 3)
+        yield [image.astype("float32")]
 
+def _fakeGen():
+    sampleDir = os.path.join("Dataset", "Clients", "client_10", "Images")
+    for i in os.listdir(sampleDir):
+        image = cv2.imread(os.path.join(sampleDir, i))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.resize(image, (300,300))
+        image = image.astype("float")
+        image = np.expand_dims(image, axis=1)
+        image = image.reshape(1, 300, 300, 3)
+        yield tf.quantization.fake_quant_with_min_max_vars(image, min, max, num_bits=8)
 
 def export_tflite_ssd_graph(pipeline_config_path, trained_checkpoint_prefix, output_directory, use_regular_nms=False, max_classes_per_detection=2, max_detections=10, add_postprocessing_op=True ):
     pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
@@ -148,7 +175,7 @@ def convert_from_saved_model(inputDir, outputDir):
     savedModel = os.path.join(inputDir, "saved_model")
     print(savedModel)
     converter =  tf.compat.v1.lite.TFLiteConverter.from_saved_model(
-        savedModel, 
+        savedModel,
         input_shapes={'image_tensor':[1, 300, 300, 3]}
         )
     converter.add_postprocessing_op = True
@@ -160,7 +187,7 @@ def convert_from_saved_model(inputDir, outputDir):
 
 
 if __name__ == "__main__":
-    
+
     inputDir = os.path.join("Traindata", "model", "MaskDetect20k")
     outputDir = os.path.join("Traindata", "model", "TFLite")
     convertModel(inputDir, outputDir, checkpoint=18431)

@@ -62,11 +62,17 @@ class JsonConverter():
         labels = json.load(json_file)
         for label in labels['item']:
           labelDict[str(label['name'])] = int(label['id'])
-          categories.append({
-          "supercategory": label['supercategory'],
-          "name":  label['name'],
-          "id":  int(label['id'])
-      })
+          try:
+            add = label['used']
+          except:
+            add = True
+
+          if add:
+            categories.append({
+            "supercategory": label['supercategory'],
+            "name":  label['name'],
+            "id":  int(label['id'])
+            })
     else:
       labelDict["Face"] = 1
       categories.append({
@@ -76,7 +82,10 @@ class JsonConverter():
         })
 
     for i, fname in enumerate(annotationFiles):
+      if (fname.startswith('.')):
+        continue
       with open(os.path.join(annotationDir, fname)) as json_file:
+        print(json_file)
         anno = json.load(json_file)
         imageHeight = 480
         imageWidth = 640
@@ -101,7 +110,7 @@ class JsonConverter():
           obj["area"] = box[2] * box[3]
           obj["image_id"] = i
           obj["iscrowd"] = 1 if len(anno["objects"]) > 1 else 0
-          
+
           annotations.append(obj)
           nrOfAnnotations += 1
 
@@ -176,8 +185,8 @@ class XmlConverter():
     images = []
     annotations = []
     categories = []
-    
-    
+
+
     nrOfAnnotations = 130
     labelDict = {}
 
@@ -202,7 +211,7 @@ class XmlConverter():
     print(categories)
     # Read all files from the subset
     for i, fname in enumerate(annotationFiles):
-      
+
       anno = ET.parse(os.path.join(annotationDir, fname)).getroot()
       # Adds all images
       images.append({

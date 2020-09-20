@@ -1,11 +1,14 @@
-
+awscli
 Babel==2.8.0
 boto==2.49.0
+boto3
 contextlib2==0.6.0.post1
 entrypoints
 Flask==1.1.1
 flask_swagger
 flask-swagger-ui
+Flask-Cors
+Flask-SocketIO
 future
 grpcio==1.30.0rc1
 h5py==2.10.0
@@ -25,9 +28,12 @@ pathlib2
 pathtools
 Pillow==7.1.2
 protobuf==3.12.2
+pycocotools
 pyOpenSSL==19.1.0
 PyYAML
 pyzmq==18.1.1
+python-engineio
+python-socketio
 requests
 requests-oauthlib
 scikit-image
@@ -40,6 +46,6 @@ tensorflow==2.2.0
 tensorflow-estimator==2.2.0
 tf-slim==1.1.0
 urllib3
+boto3
 zipp
 dataclasses
-pymongo

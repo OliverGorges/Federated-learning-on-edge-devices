@@ -285,8 +285,9 @@ def train( modelOutput, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_c
             train_steps=steps)
 
 
-def eval( modelDir, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000):
-    modelDir = os.path.join("Traindata", "model", model)
+def eval(modelDir, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_2018_03_29", steps=1000, eval_callback=None):
+    if modelDir == None:
+        modelDir = os.path.join("Traindata", "model", model)
 
     if not os.path.exists(modelDir):
         assert('Model not found!')
@@ -302,7 +303,7 @@ def eval( modelDir, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_
                 config["train_input"] = str(pathlib.Path(os.path.join(dataDir, f)).absolute())
             if f.startswith('Eval.record'):
                 config["eval_input"] = str(pathlib.Path(os.path.join(dataDir, f)).absolute())
-                config["num_eval"] = 10
+                config["num_eval"] = 1
     else:
         if "train_input" in tfRecordsConfig:
             config["train_input"] = tfRecordsConfig["train_input"]
@@ -342,7 +343,8 @@ def eval( modelDir, dataDir, tfRecordsConfig=None, model="ssd_mobilenet_v2_coco_
         sample_1_of_n_eval_examples= 1,
         sample_1_of_n_eval_on_train_examples=(1),
         checkpoint_dir=checkpointDir,
-        wait_interval=300, timeout=3600)
+        wait_interval=1, timeout=1,
+        callback=eval_callback)
 
 
 

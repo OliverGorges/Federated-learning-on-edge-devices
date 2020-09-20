@@ -10,13 +10,13 @@ import random
 import time
 from shutil import copyfile
 import json
+import logging
 from object_detection.utils import config_util
 from object_detection.builders import model_builder
 
-#Send Data
-import socket
-
 from utils.Tensorflow.tfliteConverter import convertModel
+
+
 
 # Dummy Model
 class MyModel(tf.keras.Model):
@@ -24,7 +24,7 @@ class MyModel(tf.keras.Model):
         super(MyModel, self).__init__()
         self.model = model
         self.seq = tf.keras.Sequential([
-            tf.keras.Input([320,320,3], 1),
+            tf.keras.Input([300,300,3], 1),
         ])
 
     def call(self, x):
@@ -38,19 +38,29 @@ class MyModel(tf.keras.Model):
         combined = tf.concat([boxes, classes, scores], axis=2)
         return combined
 
+
+def delta(base, checkpoint):
+    delta = {}
+    for key in checkpoint.keys():
+        delta[key] = base[key] - checkpoint[key]
+
+    sample = random.choice(list(checkpoint.keys()))
+    #logging.debug(f'Key: {sample}, Base: {base[sample]}, Checkpoint: {checkpoint[sample]}, Delta: {delta[sample]}')
+    return delta
+
 def aggregateVariables(checkpoint_dicts):
     """
     Aggreagtes all values from the checkpoint_dicts to one checkpoint
     """
     chkps = checkpoint_dicts
     aggregatedData = {}
-    for x in chkps:
-        print('########## Keys ###########')
-        #print(list(x.keys()))
+    print(chkps[0].keys())
     for key in chkps[0].keys():
-        if key == "id":
+        print(key)
+        if "extractor" not in key:
             continue
-        if x[key].ndim == 1:
+
+        if np.array(chkps[0][key]).ndim == 1:
             inputData = [x[key] for x in chkps]
             aggregatedData[key] = np.average(inputData, axis=0, weights=[1 for x in chkps])
         else:
@@ -58,6 +68,52 @@ def aggregateVariables(checkpoint_dicts):
             aggregatedData[key] = np.expand_dims(np.average(inputData, axis=0, weights=[1 for x in chkps]), axis=0)
 
     return aggregatedData
+
+def writeModel(aggregatedDelta, base_pipeline, out, base_checkpoint, c_round=0):
+    tf.keras.backend.clear_session()
+
+
+    #base_checkpoint = os.path.join(baseModel, "checkpoint", "ckpt-1")
+    #base_pipeline = os.path.join(baseModel, "pipeline.config")
+
+    checkpoint_out = os.path.join(out, "checkpoint", f"ckpt-{c_round}")
+    pipeline_out = os.path.join(out, "pipeline.config")
+
+    configs = config_util.get_configs_from_pipeline_file(base_pipeline)
+    copyfile(base_pipeline, pipeline_out)
+    detection_model = model_builder.build(configs['model'], is_training=True)
+
+    checkpoint = tf.train.Checkpoint(model=detection_model)
+    checkpoint.restore(base_checkpoint).expect_partial()
+
+    dummy = np.random.random([1,300,300,3]).astype(np.float32)
+    y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([300, 300, 3], ndmin=2))
+
+    keys = 0
+    failed = 0
+    logging.debug(aggregatedDelta.keys())
+
+    backbone_model = detection_model._feature_extractor.classification_backbone
+    logging.debug(backbone_model.layers)
+    for layer in backbone_model.layers:
+        if layer.name in aggregatedDelta:
+            print(aggregatedDelta[layer.name])
+            print(layer.get_weights())
+            layer.set_weights(np.array(aggregatedDelta[layer.name]))
+    """
+    logging.debug([v.name for v in detection_model.trainable_variables])
+    for v in detection_model.trainable_variables:
+        if v.name in aggregatedDelta:
+            if aggregatedDelta[v.name].shape == v.shape:
+                v.assign(v.numpy() + aggregatedDelta[v.name])
+            keys += 1
+        else:
+            #logging.debug(v.name)
+            failed +=1
+    logging.debug(f'Keys: {keys}, Failed: {failed}')
+"""
+    save = tf.train.Checkpoint(model=detection_model)
+    save.save(file_prefix=checkpoint_out)
 
 def writeCheckpointValues(data, pipeline, out, checkpoint_file):
     """
@@ -78,29 +134,21 @@ def writeCheckpointValues(data, pipeline, out, checkpoint_file):
     checkpoint = tf.train.Checkpoint(model=detection_model)
     checkpoint.restore( checkpoint_file).expect_partial()
 
-    dummy = np.random.random([1,320,320,3]).astype(np.float32)
-    y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([320, 320, 3], ndmin=2))
+    dummy = np.random.random([1,300,300,3]).astype(np.float32)
+    y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([300, 300, 3], ndmin=2))
 
     keys = 0
     failed = 0
     for v in detection_model.trainable_variables:
         if v.name in data:
-            print (v.name)
             if data[v.name].shape == v.shape:
-                print(v.numpy)
                 v.assign(data[v.name])
-                print(v.numpy)
             keys += 1
         else:
-            #print(v.name)
+            #logging.debug(v.name)
             failed +=1
-    print(f'Keys: {keys}, Failed: {failed}')
-    for v in detection_model.trainable_variables:
-        if v.name in data:
-            print(f'Name: {v.name}')
-            print(v.numpy)
-            print(data[v.name])
-            break
+    logging.debug(f'Keys: {keys}, Failed: {failed}')
+
     save = tf.train.Checkpoint(model=detection_model)
     save.save(file_prefix=checkpoint_out)
 
@@ -120,31 +168,21 @@ def readCheckpointValues(path, trainable=True):
     values = {}
 
     randomModi = random.random() + 0.5 # random values between 0.5 and 1.5
-    print(f"Load Checkpoint {checkpoint} {id} {randomModi}")
+    logging.debug(f"Load Checkpoint {checkpoint} {id} {randomModi}")
     configs = config_util.get_configs_from_pipeline_file(pipeline)
     detection_model = model_builder.build(configs['model'], is_training=True)
 
     ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
     ckpt.restore(checkpoint).expect_partial()
-    dummy = np.random.random([1,320,320,3]).astype(np.float32)
-    y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([320, 320, 3], ndmin=2))
+    dummy = np.random.random([1,300,300,3]).astype(np.float32)
+    y = detection_model.predict(tf.convert_to_tensor(dummy, dtype=tf.float32), np.array([300, 300, 3], ndmin=2))
 
     variables = detection_model.trainable_variables
-    # Dump 16Bit Json
+
     for v in variables:
-        values[v.name] = np.float16(v.numpy()).tolist() #* randomModi
-
-    data = json.dumps(values)
-    with open('data16.json', 'w') as outfile:
-        json.dump(data, outfile)
-
-    # Dump 32Bit Json
-    for v in variables:
-        values[v.name] = v.numpy().tolist() #* randomModi
-
-    data = json.dumps(values)
-    with open('data32.json', 'w') as outfile:
-        json.dump(data, outfile)
+        if "extractor" not in v.name:
+            continue
+        values[v.name] = v.numpy()#.tolist() #* randomModic
 
     """
     names = [weight.name for layer in model.layers for weight in layer.weights]
@@ -155,7 +193,7 @@ def readCheckpointValues(path, trainable=True):
             name = "my_model" + name[10:]
         values[name] = weight
     """
-    print(f"{len(values)} restored")
+    logging.debug(f"{len(values)} restored")
     #for var in variables:
         #values[var[0]] = ckpt.get_tensor(var[0]).numpy()
 
@@ -176,41 +214,44 @@ def sendData(path, host, port, trainable=True):
     pass
 
 if __name__ == "__main__":
-    readCheckpointValues(("Traindata\\output\\test002\\custom_pipeline.config","Traindata\\output\\test002\\ckpt-3", 1))
-    exit()
-    model_id = "FederatedTestModel"
-    modelDir = os.path.join("Traindata", "model", model_id)
-    pipeline = os.path.join(modelDir, "custom_pipeline.config")
+    #readCheckpointValues(("Traindata\\output\\test002\\custom_pipeline.config","Traindata\\output\\test002\\ckpt-3", 1))
+    #Log
+    logging.basicConfig(level=logging.DEBUG)
+    baseModel = os.path.join("models", "Animals_1597989179")
+    base_checkpoint = os.path.join(baseModel, "checkpoint", "ckpt-1")
+    base_pipeline = os.path.join(baseModel, "pipeline.config")
+
+    model_id = "zebra_ckpt1597965633.0881982"
+    modelDir = os.path.join("checkpoints", "Animals", model_id)
+    pipeline = os.path.join(modelDir, "pipeline.config")
     checkpoints = []
-    checkpoint = os.path.join(modelDir, "checkpoint", "ckpt-43")
-    nrbs = [42 ,43]
+    checkpoint = os.path.join(modelDir, "checkpoint", "ckpt-7")
+    nrbs = [7 ,7, 7]
     for nr in nrbs:
         checkpoints.append(os.path.join(modelDir, "checkpoint", f"ckpt-{nr}"))
 
-
-    output = os.path.join(modelDir, 'tflite')
-    convertModel(modelDir, output)
-
-    print(checkpoints)
+    logging.debug(checkpoints)
     #stage1 = mpipe.UnorderedStage(readCheckpointValues, len(checkpoints))
     #pipe = mpipe.Pipeline(stage1)
     chkps = []
     aggregatedData = {}
     t1 = time.time()
-    #chkps.append(readCheckpointValues(checkpoints[0], "Ref", False)) # load Reference Checkpoint with all Keys
-    t2 = time.time()
-    print(f'Load Ref: {t2-t1}')
-    for i, c in enumerate(checkpoints):
-        chkps.append(readCheckpointValues((pipeline, c , i)))
 
+    base = readCheckpointValues((base_pipeline, base_checkpoint , 0))
+    t2 = time.time()
+    logging.debug(f'Load Ref: {t2-t1}')
+
+    for i, c in enumerate(checkpoints):
+        check = readCheckpointValues((pipeline, c , i))
+        chkps.append(delta(base, check))
     t3 = time.time()
-    print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}')
+    logging.debug(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}')
+
     aggregatedData = aggregateVariables(chkps)
     t4 = time.time()
-    print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}')
+    logging.debug(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}')
 
-    writeCheckpointValues(aggregatedData, pipeline, os.path.join("Traindata", "model", "graphmod" ), checkpoint)
+    writeModel( aggregatedData, baseModel, os.path.join("models", "AnimalModelNew"))
     t5 = time.time()
-    print(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}, Save Checkpoint: {t5-t4}')
-    output = os.path.join("Traindata", "model", "graphmod", "tflite" )
-    convertModel(os.path.join("Traindata", "model", "graphmod") , output)
+    logging.debug(f'Load Ref: {t2-t1}, Load Checkpoints: {t3-t2}, Modify Key: {t4-t3}, Save Checkpoint: {t5-t4}')
+
